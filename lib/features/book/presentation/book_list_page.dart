@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'book_form_page.dart';
+import 'book_detail_page.dart';
 import '../domain/models/book_with_details.dart';
 import 'book_list_view_model.dart';
 
@@ -88,7 +89,11 @@ class _BookCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          // TODO: Navigate to book detail page (later)
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => BookDetailPage(bookId: book.id),
+            ),
+          );
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
