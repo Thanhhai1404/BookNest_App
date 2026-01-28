@@ -53,8 +53,8 @@ class MemberRepository {
     // This avoids lexicographical issues (e.g. DG99 > DG100 when ordered as strings).
 
     // Read only the `id` column for performance.
-    final rows = await (db.selectOnly(db.members)..addColumns([db.members.id]))
-        .get();
+    final rows =
+        await (db.selectOnly(db.members)..addColumns([db.members.id])).get();
 
     if (rows.isEmpty) return 'DG001';
 
