@@ -9,6 +9,27 @@ class BookRepository {
 
   final AppDatabase db;
 
+  /// Generate next book id in format BK### (e.g., BK001, BK015).
+  /// Ensures the result is always <= 10 chars (Books.id constraint).
+  Future<String> generateNextBookId() async {
+    final rows = await (db.select(db.books)).get();
+
+    var maxNum = 0;
+    for (final r in rows) {
+      final id = r.id.trim();
+      if (!id.toUpperCase().startsWith('BK')) continue;
+
+      final suffix = id.substring(2).trim();
+      final n = int.tryParse(suffix);
+      if (n == null) continue;
+      if (n > maxNum) maxNum = n;
+    }
+
+    final next = maxNum + 1;
+    // 3 digits as requested; still well under 10 chars.
+    return 'BK${next.toString().padLeft(3, '0')}';
+  }
+
   /// Returns all books along with author/category/publisher names.
   ///
   /// Note: Books->Authors is N-N via `BookAuthors`. For UI dropdown / display,
@@ -95,8 +116,16 @@ class BookRepository {
     );
   }
 
-  Future<int> addBook(BooksCompanion book) {
-    return db.into(db.books).insert(book);
+  Future<int> addBook(BooksCompanion book) async {
+    // If caller didn't provide an id, auto-generate one.
+    final id = book.id.present ? book.id.value.trim() : '';
+    final normalized = id.isEmpty ? await generateNextBookId() : id;
+
+    final toInsert = book.id.present
+        ? book
+        : book.copyWith(id: drift.Value(normalized));
+
+    return db.into(db.books).insert(toInsert);
   }
 
   Future<bool> updateBook(BooksCompanion book) {

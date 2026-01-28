@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'book_form_page.dart';
 import '../domain/models/book_with_details.dart';
 import 'book_list_view_model.dart';
 
@@ -58,8 +59,13 @@ class BookListPage extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Navigate to book form page (Milestone 3.4)
+        onPressed: () async {
+          final saved = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => const BookFormPage()),
+          );
+          if (saved == true && context.mounted) {
+            ref.read(bookListViewModelProvider.notifier).refresh();
+          }
         },
         icon: const Icon(Icons.add),
         label: const Text('Thêm'),
