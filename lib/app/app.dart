@@ -1,15 +1,32 @@
 import 'package:flutter/material.dart';
 
+import '../features/member/presentation/member_list_page.dart';
+
 class BookNestApp extends StatelessWidget {
   const BookNestApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: Colors.amber,
+      brightness: Brightness.light,
+    );
+
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: Center(child: Text('BookNest')),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: colorScheme,
+        appBarTheme: AppBarTheme(
+          backgroundColor: colorScheme.surface,
+          foregroundColor: colorScheme.onSurface,
+        ),
+        floatingActionButtonTheme: FloatingActionButtonThemeData(
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
+        ),
       ),
+      home: const MemberListPage(),
     );
   }
 }

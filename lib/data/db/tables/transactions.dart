@@ -12,7 +12,8 @@ class Transactions extends Table {
 
   DateTimeColumn get createdAt => dateTime().nullable()();
 
-  TextColumn get description => text().nullable().withLength(min: 0, max: 200)();
+  TextColumn get description =>
+      text().nullable().withLength(min: 0, max: 200)();
 
   TextColumn get memberId => text().withLength(min: 1, max: 10)();
 }

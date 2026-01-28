@@ -20,7 +20,8 @@ class Books extends Table {
   IntColumn get coverPrice => integer().nullable()();
 
   IntColumn get totalQuantity => integer().nullable()();
-  TextColumn get description => text().nullable().withLength(min: 0, max: 200)();
+  TextColumn get description =>
+      text().nullable().withLength(min: 0, max: 200)();
 
   /// From SQL: THE_LOAI (MaTL).
   IntColumn get categoryId => integer().references(Categories, #id)();

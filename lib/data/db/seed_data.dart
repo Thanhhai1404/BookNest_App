@@ -21,7 +21,8 @@ class SeedData {
           CategoriesCompanion.insert(name: const Value('Văn học nước ngoài')),
           CategoriesCompanion.insert(name: const Value('Kinh tế - Quản trị')),
           CategoriesCompanion.insert(name: const Value('Công nghệ thông tin')),
-          CategoriesCompanion.insert(name: const Value('Tâm lý - Kỹ năng sống')),
+          CategoriesCompanion.insert(
+              name: const Value('Tâm lý - Kỹ năng sống')),
           CategoriesCompanion.insert(name: const Value('Truyện tranh - Manga')),
         ]);
       });
@@ -181,7 +182,8 @@ class SeedData {
             publishedYear: const Value(2019),
             coverPrice: const Value(110000),
             totalQuantity: const Value(5),
-            description: const Value('Câu chuyện tình đơn phương kinh điển của Ngạn.'),
+            description:
+                const Value('Câu chuyện tình đơn phương kinh điển của Ngạn.'),
             categoryId: 1,
             publisherId: 1,
           ),
@@ -191,7 +193,8 @@ class SeedData {
             publishedYear: const Value(2018),
             coverPrice: const Value(80000),
             totalQuantity: const Value(10),
-            description: const Value('Cuốn sách self-help quốc dân cho giới trẻ.'),
+            description:
+                const Value('Cuốn sách self-help quốc dân cho giới trẻ.'),
             categoryId: 5,
             publisherId: 3,
           ),
@@ -201,13 +204,15 @@ class SeedData {
             publishedYear: const Value(2020),
             coverPrice: const Value(79000),
             totalQuantity: const Value(8),
-            description: const Value('Hành trình theo đuổi ước mơ của Santiago.'),
+            description:
+                const Value('Hành trình theo đuổi ước mơ của Santiago.'),
             categoryId: 2,
             publisherId: 3,
           ),
           BooksCompanion.insert(
             id: 'DS004',
-            title: const Value('Clean Code: A Handbook of Agile Software Craftsmanship'),
+            title: const Value(
+                'Clean Code: A Handbook of Agile Software Craftsmanship'),
             publishedYear: const Value(2008),
             coverPrice: const Value(950000),
             totalQuantity: const Value(3),
@@ -241,7 +246,8 @@ class SeedData {
             publishedYear: const Value(2022),
             coverPrice: const Value(150000),
             totalQuantity: const Value(4),
-            description: const Value('Tâm lý học hiện đại của Đặng Hoàng Giang.'),
+            description:
+                const Value('Tâm lý học hiện đại của Đặng Hoàng Giang.'),
             categoryId: 5,
             publisherId: 3,
           ),

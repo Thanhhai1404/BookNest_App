@@ -60,7 +60,9 @@ enum Role {
 
   static Role fromUsernameOrTitle({required String username, String? title}) {
     if (username.toLowerCase() == 'admin') return Role.admin;
-    if (title != null && title.toLowerCase().contains('admin')) return Role.admin;
+    if (title != null && title.toLowerCase().contains('admin')) {
+      return Role.admin;
+    }
     return Role.staff;
   }
 }

@@ -39,9 +39,6 @@ class Members extends Table {
   Set<Column> get primaryKey => {id};
 
   @override
-  List<String> get customConstraints => [
-        'UNIQUE(email)',
-        'UNIQUE(national_id)',
-        'UNIQUE(phone)'
-      ];
+  List<String> get customConstraints =>
+      ['UNIQUE(email)', 'UNIQUE(national_id)', 'UNIQUE(phone)'];
 }
