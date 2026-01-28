@@ -87,6 +87,24 @@ class BookDetailViewModel
     await future;
   }
 
+  Future<void> deleteCopy(String copyId) async {
+    final repo = ref.read(bookRepositoryProvider);
+    await repo.deleteBookCopy(copyId);
+
+    ref.invalidateSelf();
+    await future;
+  }
+
+  Future<void> deleteBook() async {
+    final bookId = _bookId;
+    if (bookId == null) {
+      throw StateError('BookDetailViewModel chưa được khởi tạo bookId.');
+    }
+
+    final repo = ref.read(bookRepositoryProvider);
+    await repo.deleteBook(bookId);
+  }
+
   String _generateNextBarcode(String bookId, List<BookCopy> existing) {
     var maxNum = 0;
     for (final c in existing) {

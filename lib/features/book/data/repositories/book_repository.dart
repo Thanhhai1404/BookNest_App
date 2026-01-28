@@ -132,8 +132,15 @@ class BookRepository {
     return db.update(db.books).replace(book);
   }
 
-  Future<int> deleteBook(String id) {
-    return (db.delete(db.books)..where((b) => b.id.equals(id))).go();
+  /// Delete one copy (barcode) from BookCopies.
+  Future<int> deleteBookCopy(String copyId) {
+    return (db.delete(db.bookCopies)..where((c) => c.id.equals(copyId))).go();
+  }
+
+  /// Cascade delete: remove all copies of a book, then delete the book.
+  Future<int> deleteBook(String bookId) async {
+    await (db.delete(db.bookCopies)..where((c) => c.bookId.equals(bookId))).go();
+    return (db.delete(db.books)..where((b) => b.id.equals(bookId))).go();
   }
 
   String _formatAuthorName(Author? author) {

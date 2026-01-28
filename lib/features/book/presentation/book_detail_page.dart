@@ -14,7 +14,53 @@ class BookDetailPage extends ConsumerWidget {
     final stateAsync = ref.watch(bookDetailViewModelProvider(bookId));
 
     return Scaffold(
-      appBar: AppBar(title: Text('Chi tiết $bookId')),
+      appBar: AppBar(
+        title: Text('Chi tiết $bookId'),
+        actions: [
+          IconButton(
+            tooltip: 'Xóa sách',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Xóa sách?'),
+                  content: const Text(
+                    'Bạn có chắc chắn muốn xóa sách này và toàn bộ bản sao không? Hành động này không thể hoàn tác.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Hủy'),
+                    ),
+                    FilledButton.tonal(
+                      style: FilledButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.red,
+                      ),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Xóa'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok != true) return;
+
+              final notifier = ref.read(bookDetailViewModelProvider(bookId).notifier);
+              try {
+                await notifier.deleteBook();
+                if (!context.mounted) return;
+                Navigator.of(context).pop(true);
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Xóa sách thất bại: $e')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
       body: stateAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(
@@ -42,7 +88,45 @@ class BookDetailPage extends ConsumerWidget {
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final c = state.copies[index];
-                          return _CopyTile(copyId: c.id, status: c.status);
+                          return _CopyTile(
+                            copyId: c.id,
+                            status: c.status,
+                            onDelete: () async {
+                              final ok = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Xóa bản sao?'),
+                                  content: Text('Xóa bản sao ${c.id} này?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Hủy'),
+                                    ),
+                                    FilledButton.tonal(
+                                      style: FilledButton.styleFrom(
+                                        foregroundColor: Colors.white,
+                                        backgroundColor: Colors.red,
+                                      ),
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Xóa'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok != true) return;
+
+                              final notifier =
+                                  ref.read(bookDetailViewModelProvider(bookId).notifier);
+                              try {
+                                await notifier.deleteCopy(c.id);
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Xóa bản sao thất bại: $e')),
+                                );
+                              }
+                            },
+                          );
                         },
                       ),
               ),
@@ -145,10 +229,11 @@ class _HeaderCard extends StatelessWidget {
 }
 
 class _CopyTile extends StatelessWidget {
-  const _CopyTile({required this.copyId, required this.status});
+  const _CopyTile({required this.copyId, required this.status, this.onDelete});
 
   final String copyId;
   final int? status;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -165,17 +250,28 @@ class _CopyTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       tileColor: Theme.of(context).colorScheme.surfaceContainerLowest,
       title: Text(copyId, style: const TextStyle(fontWeight: FontWeight.w600)),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withAlpha(28),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withAlpha(120)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(color: color, fontWeight: FontWeight.w700),
-        ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withAlpha(28),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withAlpha(120)),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Xóa bản sao',
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: onDelete,
+          ),
+        ],
       ),
     );
   }
