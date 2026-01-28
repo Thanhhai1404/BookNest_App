@@ -45,7 +45,7 @@ class BookListPage extends ConsumerWidget {
                 crossAxisCount: 2,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 0.78,
+                childAspectRatio: 0.7,
               ),
               itemCount: books.length,
               itemBuilder: (context, index) {
@@ -107,10 +107,19 @@ class _BookCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${item.authorName} • ${item.categoryName}',
-                    maxLines: 2,
+                    item.authorName,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.categoryName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                   ),
                   const SizedBox(height: 4),
                   Text(
