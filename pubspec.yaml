@@ -1,0 +1,55 @@
+name: booknest_app
+description: BookNest - Offline library management app (single-device kiosk mode)
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.6
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # Database
+  drift: ^2.26.0
+  sqlite3_flutter_libs: ^0.5.24
+  path: ^1.9.0
+
+  # Utilities
+  intl: ^0.20.2
+
+  # Scanner / QR
+  mobile_scanner: ^6.0.6
+  qr_flutter: ^4.1.0
+
+  # File / media
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+  file_picker: ^8.1.7
+  share_plus: ^10.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+  # Drift codegen
+  drift_dev: ^2.26.0
+  build_runner: ^2.4.15
+
+  # Testing
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true

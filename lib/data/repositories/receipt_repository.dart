@@ -1,0 +1,1 @@
+// ReceiptRepository will live here.
