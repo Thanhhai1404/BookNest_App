@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../features/member/presentation/member_list_page.dart';
+import '../features/book/presentation/book_list_page.dart';
 
 class BookNestApp extends StatelessWidget {
   const BookNestApp({super.key});
@@ -26,7 +26,7 @@ class BookNestApp extends StatelessWidget {
           foregroundColor: colorScheme.onPrimary,
         ),
       ),
-      home: const MemberListPage(),
+      home: const BookListPage(),
     );
   }
 }
