@@ -76,13 +76,13 @@ class LoanListPage extends ConsumerWidget {
   }
 }
 
-class _LoanCard extends StatelessWidget {
+class _LoanCard extends ConsumerWidget {
   const _LoanCard({required this.item});
 
   final LoanWithDetails item;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final dateFormat = DateFormat('dd/MM/yyyy');
 
@@ -190,10 +190,77 @@ class _LoanCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
+            // Return book button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _confirmReturn(context, ref),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.green.shade700,
+                  side: BorderSide(color: Colors.green.shade300),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.assignment_return),
+                label: const Text('Trả sách'),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmReturn(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận trả sách'),
+        content: Text(
+          'Xác nhận trả cuốn "${item.bookTitle}" (${item.copyId})?\n\n'
+          'Người mượn: ${item.memberName}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref.read(loanViewModelProvider.notifier).returnBook(item.loan.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Trả sách thành công!'),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi: $e'),
+              backgroundColor: Colors.red.shade600,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 }
 

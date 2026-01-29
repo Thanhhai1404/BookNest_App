@@ -44,7 +44,6 @@ class LoanViewModel extends AsyncNotifier<LoanListState> {
       return LoanListState(activeLoans: activeLoans);
     });
   }
-
   Future<void> borrowBook({
     required String memberId,
     required String copyId,
@@ -57,6 +56,13 @@ class LoanViewModel extends AsyncNotifier<LoanListState> {
       dueDate: dueDate,
     );
     await refresh();
+  }
+
+  /// Return a borrowed book by loan ID.
+  Future<void> returnBook(int loanId) async {
+    final repo = ref.read(loanRepositoryProvider);
+    await repo.returnBook(loanId);
+    ref.invalidateSelf();
   }
 }
 
