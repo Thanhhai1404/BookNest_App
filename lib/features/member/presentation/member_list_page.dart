@@ -47,7 +47,7 @@ class MemberListPage extends ConsumerWidget {
                     tooltip: 'Xoá tìm kiếm',
                     onPressed: () => ref
                         .read(memberListControllerProvider.notifier)
-                        .setQuery(''),
+                        .clearQuery(),
                     icon: const Icon(Icons.clear),
                   )
               ],

@@ -39,7 +39,7 @@ class HomePage extends ConsumerWidget {
                             color: scheme.onSurfaceVariant,
                           ),
                     ),
-                    const SizedBox(height: 24),                    // Stats cards row
+                    const SizedBox(height: 24), // Stats cards row
                     stateAsync.when(
                       loading: () => Row(
                         children: [
@@ -166,7 +166,8 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),                  _MenuCard(
+                  ),
+                  _MenuCard(
                     icon: Icons.input_rounded,
                     title: 'Trả\nSách',
                     color: Colors.deepPurple,

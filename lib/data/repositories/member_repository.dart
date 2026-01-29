@@ -71,7 +71,8 @@ class MemberRepository {
       final value = int.tryParse(match.group(1) ?? '');
       if (value == null) continue;
       if (value > maxValue) maxValue = value;
-    }    final next = maxValue + 1;
+    }
+    final next = maxValue + 1;
     final padded = next.toString().padLeft(3, '0');
     return 'DG$padded';
   }

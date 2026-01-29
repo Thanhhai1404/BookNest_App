@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'book_form_page.dart';
 import 'book_detail_page.dart';
+import '../data/repositories/book_repository.dart';
 import '../domain/models/book_with_details.dart';
 import 'book_list_view_model.dart';
 
@@ -11,7 +12,8 @@ class BookListPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final booksAsync = ref.watch(bookListViewModelProvider);
+    final state = ref.watch(bookListViewModelProvider);
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -25,39 +27,72 @@ class BookListPage extends ConsumerWidget {
           )
         ],
       ),
-      body: booksAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('Lỗi: $e'),
-          ),
-        ),
-        data: (books) {
-          if (books.isEmpty) {
-            return const Center(child: Text('Chưa có sách nào.'));
-          }
-
-          // Use GridView for a more "inventory" feel.
-          return RefreshIndicator(
-            onRefresh: () =>
-                ref.read(bookListViewModelProvider.notifier).refresh(),
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.6,
+      body: Column(
+        children: [
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: SearchBar(
+              hintText: 'Tìm theo tên sách, tác giả hoặc mã sách',
+              leading: const Icon(Icons.search),
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 16),
               ),
-              itemCount: books.length,
-              itemBuilder: (context, index) {
-                final item = books[index];
-                return _BookCard(item: item);
-              },
+              onChanged: (value) =>
+                  ref.read(bookListViewModelProvider.notifier).setQuery(value),
+              trailing: [
+                if (state.query.trim().isNotEmpty)
+                  IconButton(
+                    tooltip: 'Xoá tìm kiếm',
+                    onPressed: () => ref
+                        .read(bookListViewModelProvider.notifier)
+                        .clearQuery(),
+                    icon: const Icon(Icons.clear),
+                  )
+              ],
             ),
-          );
-        },
+          ),
+
+          // Filter chips
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: 'Tất cả',
+                  selected: state.filter == BookAvailabilityFilter.all,
+                  onSelected: () => ref
+                      .read(bookListViewModelProvider.notifier)
+                      .setFilter(BookAvailabilityFilter.all),
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Sẵn sàng',
+                  selected: state.filter == BookAvailabilityFilter.available,
+                  onSelected: () => ref
+                      .read(bookListViewModelProvider.notifier)
+                      .setFilter(BookAvailabilityFilter.available),
+                  color: Colors.green,
+                ),
+                const SizedBox(width: 8),
+                _FilterChip(
+                  label: 'Hết hàng',
+                  selected: state.filter == BookAvailabilityFilter.outOfStock,
+                  onSelected: () => ref
+                      .read(bookListViewModelProvider.notifier)
+                      .setFilter(BookAvailabilityFilter.outOfStock),
+                  color: Colors.red,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Book list
+          Expanded(
+            child: _buildBookList(context, ref, state, scheme),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -71,6 +106,83 @@ class BookListPage extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Thêm'),
       ),
+    );
+  }
+
+  Widget _buildBookList(
+    BuildContext context,
+    WidgetRef ref,
+    BookListState state,
+    ColorScheme scheme,
+  ) {
+    if (state.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state.books.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, size: 64, color: scheme.outline),
+            const SizedBox(height: 16),
+            Text(
+              state.query.isNotEmpty ||
+                      state.filter != BookAvailabilityFilter.all
+                  ? 'Không tìm thấy sách phù hợp'
+                  : 'Chưa có sách nào.',
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(bookListViewModelProvider.notifier).refresh(),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.6,
+        ),
+        itemCount: state.books.length,
+        itemBuilder: (context, index) {
+          final item = state.books[index];
+          return _BookCard(item: item);
+        },
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+    this.color,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final chipColor = color ?? scheme.primary;
+
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: chipColor.withAlpha(40),
+      checkmarkColor: chipColor,
+      side: selected ? BorderSide(color: chipColor) : null,
     );
   }
 }

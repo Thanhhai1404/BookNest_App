@@ -44,6 +44,7 @@ class LoanViewModel extends AsyncNotifier<LoanListState> {
       return LoanListState(activeLoans: activeLoans);
     });
   }
+
   Future<void> borrowBook({
     required String memberId,
     required String copyId,
