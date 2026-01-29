@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../book/presentation/book_list_page.dart';
+import '../../loan/presentation/loan_list_page.dart';
 import '../../member/presentation/member_list_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -114,9 +115,10 @@ class HomePage extends StatelessWidget {
                     title: 'Mượn\nSách',
                     color: Colors.green,
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Chức năng đang phát triển...')),
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const LoanListPage(),
+                        ),
                       );
                     },
                   ),

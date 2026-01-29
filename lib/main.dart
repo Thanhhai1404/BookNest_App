@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // Import Riverpod
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'app/app.dart';
 import 'data/db/app_database.dart';
@@ -7,7 +8,7 @@ import 'data/db/seed_data.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  await initializeDateFormatting();
   // 1. Khởi tạo Database
   final db = AppDatabase();
 
