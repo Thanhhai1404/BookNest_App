@@ -592,13 +592,17 @@ class $MembersTable extends Members with TableInfo<$MembersTable, Member> {
       const VerificationMeta('walletBalance');
   @override
   late final GeneratedColumn<int> walletBalance = GeneratedColumn<int>(
-      'wallet_balance', aliasedName, true,
-      type: DriftSqlType.int, requiredDuringInsert: false);
+      'wallet_balance', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   static const VerificationMeta _pointsMeta = const VerificationMeta('points');
   @override
   late final GeneratedColumn<int> points = GeneratedColumn<int>(
-      'points', aliasedName, true,
-      type: DriftSqlType.int, requiredDuringInsert: false);
+      'points', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   static const VerificationMeta _isActiveMeta =
       const VerificationMeta('isActive');
   @override
@@ -774,9 +778,9 @@ class $MembersTable extends Members with TableInfo<$MembersTable, Member> {
           DriftSqlType.dateTime,
           data['${effectivePrefix}subscription_expiry_date']),
       walletBalance: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}wallet_balance']),
+          .read(DriftSqlType.int, data['${effectivePrefix}wallet_balance'])!,
       points: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}points']),
+          .read(DriftSqlType.int, data['${effectivePrefix}points'])!,
       isActive: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_active']),
       subscriptionId: attachedDatabase.typeMapping.read(
@@ -808,9 +812,11 @@ class Member extends DataClass implements Insertable<Member> {
   final String? address;
   final DateTime? subscriptionExpiryDate;
 
-  /// Wallet balance in VND.
-  final int? walletBalance;
-  final int? points;
+  /// Wallet balance in VND. Default is 0.
+  final int walletBalance;
+
+  /// Points accumulated. Default is 0.
+  final int points;
 
   /// SQL TrangThai bit (0/1).
   final bool? isActive;
@@ -832,8 +838,8 @@ class Member extends DataClass implements Insertable<Member> {
       required this.email,
       this.address,
       this.subscriptionExpiryDate,
-      this.walletBalance,
-      this.points,
+      required this.walletBalance,
+      required this.points,
       this.isActive,
       required this.subscriptionId,
       this.avatarPath,
@@ -866,12 +872,8 @@ class Member extends DataClass implements Insertable<Member> {
       map['subscription_expiry_date'] =
           Variable<DateTime>(subscriptionExpiryDate);
     }
-    if (!nullToAbsent || walletBalance != null) {
-      map['wallet_balance'] = Variable<int>(walletBalance);
-    }
-    if (!nullToAbsent || points != null) {
-      map['points'] = Variable<int>(points);
-    }
+    map['wallet_balance'] = Variable<int>(walletBalance);
+    map['points'] = Variable<int>(points);
     if (!nullToAbsent || isActive != null) {
       map['is_active'] = Variable<bool>(isActive);
     }
@@ -910,11 +912,8 @@ class Member extends DataClass implements Insertable<Member> {
       subscriptionExpiryDate: subscriptionExpiryDate == null && nullToAbsent
           ? const Value.absent()
           : Value(subscriptionExpiryDate),
-      walletBalance: walletBalance == null && nullToAbsent
-          ? const Value.absent()
-          : Value(walletBalance),
-      points:
-          points == null && nullToAbsent ? const Value.absent() : Value(points),
+      walletBalance: Value(walletBalance),
+      points: Value(points),
       isActive: isActive == null && nullToAbsent
           ? const Value.absent()
           : Value(isActive),
@@ -943,8 +942,8 @@ class Member extends DataClass implements Insertable<Member> {
       address: serializer.fromJson<String?>(json['address']),
       subscriptionExpiryDate:
           serializer.fromJson<DateTime?>(json['subscriptionExpiryDate']),
-      walletBalance: serializer.fromJson<int?>(json['walletBalance']),
-      points: serializer.fromJson<int?>(json['points']),
+      walletBalance: serializer.fromJson<int>(json['walletBalance']),
+      points: serializer.fromJson<int>(json['points']),
       isActive: serializer.fromJson<bool?>(json['isActive']),
       subscriptionId: serializer.fromJson<String>(json['subscriptionId']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
@@ -966,8 +965,8 @@ class Member extends DataClass implements Insertable<Member> {
       'address': serializer.toJson<String?>(address),
       'subscriptionExpiryDate':
           serializer.toJson<DateTime?>(subscriptionExpiryDate),
-      'walletBalance': serializer.toJson<int?>(walletBalance),
-      'points': serializer.toJson<int?>(points),
+      'walletBalance': serializer.toJson<int>(walletBalance),
+      'points': serializer.toJson<int>(points),
       'isActive': serializer.toJson<bool?>(isActive),
       'subscriptionId': serializer.toJson<String>(subscriptionId),
       'avatarPath': serializer.toJson<String?>(avatarPath),
@@ -986,8 +985,8 @@ class Member extends DataClass implements Insertable<Member> {
           String? email,
           Value<String?> address = const Value.absent(),
           Value<DateTime?> subscriptionExpiryDate = const Value.absent(),
-          Value<int?> walletBalance = const Value.absent(),
-          Value<int?> points = const Value.absent(),
+          int? walletBalance,
+          int? points,
           Value<bool?> isActive = const Value.absent(),
           String? subscriptionId,
           Value<String?> avatarPath = const Value.absent(),
@@ -1005,9 +1004,8 @@ class Member extends DataClass implements Insertable<Member> {
         subscriptionExpiryDate: subscriptionExpiryDate.present
             ? subscriptionExpiryDate.value
             : this.subscriptionExpiryDate,
-        walletBalance:
-            walletBalance.present ? walletBalance.value : this.walletBalance,
-        points: points.present ? points.value : this.points,
+        walletBalance: walletBalance ?? this.walletBalance,
+        points: points ?? this.points,
         isActive: isActive.present ? isActive.value : this.isActive,
         subscriptionId: subscriptionId ?? this.subscriptionId,
         avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
@@ -1118,8 +1116,8 @@ class MembersCompanion extends UpdateCompanion<Member> {
   final Value<String> email;
   final Value<String?> address;
   final Value<DateTime?> subscriptionExpiryDate;
-  final Value<int?> walletBalance;
-  final Value<int?> points;
+  final Value<int> walletBalance;
+  final Value<int> points;
   final Value<bool?> isActive;
   final Value<String> subscriptionId;
   final Value<String?> avatarPath;
@@ -1218,8 +1216,8 @@ class MembersCompanion extends UpdateCompanion<Member> {
       Value<String>? email,
       Value<String?>? address,
       Value<DateTime?>? subscriptionExpiryDate,
-      Value<int?>? walletBalance,
-      Value<int?>? points,
+      Value<int>? walletBalance,
+      Value<int>? points,
       Value<bool?>? isActive,
       Value<String>? subscriptionId,
       Value<String?>? avatarPath,
@@ -6034,8 +6032,8 @@ typedef $$MembersTableCreateCompanionBuilder = MembersCompanion Function({
   required String email,
   Value<String?> address,
   Value<DateTime?> subscriptionExpiryDate,
-  Value<int?> walletBalance,
-  Value<int?> points,
+  Value<int> walletBalance,
+  Value<int> points,
   Value<bool?> isActive,
   required String subscriptionId,
   Value<String?> avatarPath,
@@ -6053,8 +6051,8 @@ typedef $$MembersTableUpdateCompanionBuilder = MembersCompanion Function({
   Value<String> email,
   Value<String?> address,
   Value<DateTime?> subscriptionExpiryDate,
-  Value<int?> walletBalance,
-  Value<int?> points,
+  Value<int> walletBalance,
+  Value<int> points,
   Value<bool?> isActive,
   Value<String> subscriptionId,
   Value<String?> avatarPath,
@@ -6335,8 +6333,8 @@ class $$MembersTableTableManager extends RootTableManager<
             Value<String> email = const Value.absent(),
             Value<String?> address = const Value.absent(),
             Value<DateTime?> subscriptionExpiryDate = const Value.absent(),
-            Value<int?> walletBalance = const Value.absent(),
-            Value<int?> points = const Value.absent(),
+            Value<int> walletBalance = const Value.absent(),
+            Value<int> points = const Value.absent(),
             Value<bool?> isActive = const Value.absent(),
             Value<String> subscriptionId = const Value.absent(),
             Value<String?> avatarPath = const Value.absent(),
@@ -6373,8 +6371,8 @@ class $$MembersTableTableManager extends RootTableManager<
             required String email,
             Value<String?> address = const Value.absent(),
             Value<DateTime?> subscriptionExpiryDate = const Value.absent(),
-            Value<int?> walletBalance = const Value.absent(),
-            Value<int?> points = const Value.absent(),
+            Value<int> walletBalance = const Value.absent(),
+            Value<int> points = const Value.absent(),
             Value<bool?> isActive = const Value.absent(),
             required String subscriptionId,
             Value<String?> avatarPath = const Value.absent(),

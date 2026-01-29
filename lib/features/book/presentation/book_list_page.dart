@@ -136,7 +136,8 @@ class _BookListPageState extends ConsumerState<BookListPage> {
         onPressed: () async {
           final saved = await Navigator.of(context).push<bool>(
             MaterialPageRoute(builder: (_) => const BookFormPage()),
-          );          if (saved == true && context.mounted) {
+          );
+          if (saved == true && context.mounted) {
             ref.read(bookListViewModelProvider.notifier).refresh();
           }
         },

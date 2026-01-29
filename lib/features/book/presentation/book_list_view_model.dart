@@ -84,6 +84,7 @@ class BookListViewModel extends Notifier<BookListState> {
       _loadBooks();
     });
   }
+
   void clearQuery() {
     _debounceTimer?.cancel();
     state = state.copyWith(query: '', debouncedQuery: '');

@@ -84,4 +84,100 @@ class MemberRepository {
     final row = await query.getSingle();
     return row.read(countExp) ?? 0;
   }
+
+  /// Top up wallet balance for a member.
+  ///
+  /// [memberId]: The member's ID.
+  /// [amount]: Amount to add (must be positive).
+  /// Returns the new wallet balance, or throws if member not found.
+  Future<int> topUpWallet(String memberId, int amount) async {
+    if (amount <= 0) {
+      throw ArgumentError('Amount must be positive');
+    }
+
+    final member = await getMemberById(memberId);
+    if (member == null) {
+      throw StateError('Không tìm thấy hội viên: $memberId');
+    }
+
+    final currentBalance = member.walletBalance ?? 0;
+    final newBalance = currentBalance + amount;
+
+    await (db.update(db.members)..where((m) => m.id.equals(memberId))).write(
+      MembersCompanion(walletBalance: Value(newBalance)),
+    );
+
+    return newBalance;
+  }
+
+  /// Deduct from wallet balance for a member.
+  ///
+  /// [memberId]: The member's ID.
+  /// [amount]: Amount to deduct (must be positive).
+  /// Returns the new wallet balance, or throws if insufficient funds.
+  Future<int> deductWallet(String memberId, int amount) async {
+    if (amount <= 0) {
+      throw ArgumentError('Amount must be positive');
+    }
+
+    final member = await getMemberById(memberId);
+    if (member == null) {
+      throw StateError('Không tìm thấy hội viên: $memberId');
+    }
+
+    final currentBalance = member.walletBalance ?? 0;
+    if (currentBalance < amount) {
+      throw StateError('Số dư không đủ. Hiện có: $currentBalance VND');
+    }
+
+    final newBalance = currentBalance - amount;
+
+    await (db.update(db.members)..where((m) => m.id.equals(memberId))).write(
+      MembersCompanion(walletBalance: Value(newBalance)),
+    );
+
+    return newBalance;
+  }
+
+  /// Update points for a member (add or subtract).
+  ///
+  /// [memberId]: The member's ID.
+  /// [pointsToAdd]: Points to add (positive) or subtract (negative).
+  /// Returns the new points total.
+  Future<int> updatePoints(String memberId, int pointsToAdd) async {
+    final member = await getMemberById(memberId);
+    if (member == null) {
+      throw StateError('Không tìm thấy hội viên: $memberId');
+    }
+
+    final currentPoints = member.points ?? 0;
+    final newPoints = currentPoints + pointsToAdd;
+
+    // Ensure points don't go negative
+    final finalPoints = newPoints < 0 ? 0 : newPoints;
+
+    await (db.update(db.members)..where((m) => m.id.equals(memberId))).write(
+      MembersCompanion(points: Value(finalPoints)),
+    );
+
+    return finalPoints;
+  }
+
+  /// Get wallet balance for a member.
+  Future<int> getWalletBalance(String memberId) async {
+    final member = await getMemberById(memberId);
+    if (member == null) {
+      throw StateError('Không tìm thấy hội viên: $memberId');
+    }
+    return member.walletBalance ?? 0;
+  }
+
+  /// Get points for a member.
+  Future<int> getPoints(String memberId) async {
+    final member = await getMemberById(memberId);
+    if (member == null) {
+      throw StateError('Không tìm thấy hội viên: $memberId');
+    }
+    return member.points ?? 0;
+  }
 }

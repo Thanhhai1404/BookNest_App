@@ -55,7 +55,29 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (Migrator m) async {
+        await m.createAll();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        // Migration from v1 to v2:
+        // - wallet_balance and points now have default 0 instead of nullable
+        // For existing data, we just update NULL values to 0
+        if (from < 2) {
+          await customStatement(
+            'UPDATE members SET wallet_balance = 0 WHERE wallet_balance IS NULL',
+          );
+          await customStatement(
+            'UPDATE members SET points = 0 WHERE points IS NULL',
+          );
+        }
+      },
+    );
+  }
 }
 
 LazyDatabase _openConnection() {

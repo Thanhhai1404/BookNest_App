@@ -16,13 +16,13 @@ class Members extends Table {
   TextColumn get nationalId => text().withLength(min: 1, max: 12)();
   TextColumn get email => text().withLength(min: 1, max: 100)();
   TextColumn get address => text().nullable().withLength(min: 0, max: 200)();
-
   DateTimeColumn get subscriptionExpiryDate => dateTime().nullable()();
 
-  /// Wallet balance in VND.
-  IntColumn get walletBalance => integer().nullable()();
+  /// Wallet balance in VND. Default is 0.
+  IntColumn get walletBalance => integer().withDefault(const Constant(0))();
 
-  IntColumn get points => integer().nullable()();
+  /// Points accumulated. Default is 0.
+  IntColumn get points => integer().withDefault(const Constant(0))();
 
   /// SQL TrangThai bit (0/1).
   BoolColumn get isActive => boolean().nullable()();

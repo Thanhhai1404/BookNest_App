@@ -51,6 +51,7 @@ class MemberListController extends StateNotifier<MemberListState> {
       state = state.copyWith(debouncedQuery: value);
     });
   }
+
   void clearQuery() {
     _debounceTimer?.cancel();
     state = MemberListState.initial;

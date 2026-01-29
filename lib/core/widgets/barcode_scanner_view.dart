@@ -51,7 +51,8 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Quét mã'),        actions: [
+        title: const Text('Quét mã'),
+        actions: [
           // Toggle flash
           IconButton(
             icon: ValueListenableBuilder<MobileScannerState>(
@@ -123,7 +124,8 @@ class _ScanOverlayPainter extends CustomPainter {
   final Color borderColor;
   final Color overlayColor;
 
-  @override  void paint(Canvas canvas, Size size) {
+  @override
+  void paint(Canvas canvas, Size size) {
     final double scanAreaSize = size.width * 0.7;
     final double left = (size.width - scanAreaSize) / 2;
     final double top = (size.height - scanAreaSize) / 2 - 50;
@@ -139,7 +141,8 @@ class _ScanOverlayPainter extends CustomPainter {
 
     // Bottom overlay
     canvas.drawRect(
-      Rect.fromLTWH(0, top + scanAreaSize, size.width, size.height - top - scanAreaSize),
+      Rect.fromLTWH(
+          0, top + scanAreaSize, size.width, size.height - top - scanAreaSize),
       overlayPaint,
     );
 
@@ -151,7 +154,8 @@ class _ScanOverlayPainter extends CustomPainter {
 
     // Right overlay
     canvas.drawRect(
-      Rect.fromLTWH(left + scanAreaSize, top, size.width - left - scanAreaSize, scanAreaSize),
+      Rect.fromLTWH(left + scanAreaSize, top, size.width - left - scanAreaSize,
+          scanAreaSize),
       overlayPaint,
     );
 
