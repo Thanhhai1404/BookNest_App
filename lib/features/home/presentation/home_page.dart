@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../book/presentation/book_list_page.dart';
 import '../../loan/presentation/loan_list_page.dart';
 import '../../member/presentation/member_list_page.dart';
+import '../../settings/presentation/backup_restore_page.dart';
 import 'home_view_model.dart';
 
 class HomePage extends ConsumerWidget {
@@ -15,6 +16,21 @@ class HomePage extends ConsumerWidget {
     final stateAsync = ref.watch(homeViewModelProvider);
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('BookNest'),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            tooltip: 'Cài đặt',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
