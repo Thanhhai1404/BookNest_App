@@ -1,15 +1,30 @@
 import 'package:drift/drift.dart';
 
-// Drift table: Reservations
+import 'books.dart';
+import 'members.dart';
 
+/// Drift table: Reservations (Đặt trước sách)
+///
+/// Tracks book reservation requests when no copies are available.
 class Reservations extends Table {
+  @override
+  String get tableName => 'reservations';
+
+  /// Auto-increment primary key.
   IntColumn get id => integer().autoIncrement()();
 
-  TextColumn get bookId => text().withLength(min: 1, max: 10)();
-  TextColumn get memberId => text().withLength(min: 1, max: 10)();
+  /// Book being reserved (FK -> Books.id).
+  TextColumn get bookId =>
+      text().withLength(min: 1, max: 10).references(Books, #id)();
 
+  /// Member who is reserving (FK -> Members.id).
+  TextColumn get memberId =>
+      text().withLength(min: 1, max: 10).references(Members, #id)();
+
+  /// When the reservation was created.
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
-  /// int status: 0=Active, 1=Fulfilled, 2=Cancelled (suggested)
-  IntColumn get status => integer().withDefault(const Constant(0))();
+  /// Reservation status: 'Active', 'Fulfilled', 'Cancelled'.
+  TextColumn get status =>
+      text().withLength(min: 1, max: 20).withDefault(const Constant('Active'))();
 }

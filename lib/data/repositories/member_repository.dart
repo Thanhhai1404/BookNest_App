@@ -1,6 +1,14 @@
 import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/constants/enums.dart';
 import '../db/app_database.dart';
+
+/// Provider for MemberRepository
+final memberRepositoryProvider = Provider<MemberRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  return MemberRepository(db);
+});
 
 class MemberRepository {
   MemberRepository(this.db);
@@ -84,38 +92,54 @@ class MemberRepository {
     final row = await query.getSingle();
     return row.read(countExp) ?? 0;
   }
-
   /// Top up wallet balance for a member.
   ///
   /// [memberId]: The member's ID.
   /// [amount]: Amount to add (must be positive).
   /// Returns the new wallet balance, or throws if member not found.
+  ///
+  /// Also logs the transaction to the Transactions table.
   Future<int> topUpWallet(String memberId, int amount) async {
     if (amount <= 0) {
       throw ArgumentError('Amount must be positive');
     }
 
-    final member = await getMemberById(memberId);
-    if (member == null) {
-      throw StateError('Không tìm thấy hội viên: $memberId');
-    }
+    return db.transaction(() async {
+      final member = await getMemberById(memberId);
+      if (member == null) {
+        throw StateError('Không tìm thấy hội viên: $memberId');
+      }
 
-    final currentBalance = member.walletBalance ?? 0;
-    final newBalance = currentBalance + amount;
+      final currentBalance = member.walletBalance;
+      final newBalance = currentBalance + amount;
 
-    await (db.update(db.members)..where((m) => m.id.equals(memberId))).write(
-      MembersCompanion(walletBalance: Value(newBalance)),
-    );
+      // Update wallet balance
+      await (db.update(db.members)..where((m) => m.id.equals(memberId))).write(
+        MembersCompanion(walletBalance: Value(newBalance)),
+      );
 
-    return newBalance;
+      // Log transaction
+      await db.into(db.transactions).insert(
+            TransactionsCompanion.insert(
+              memberId: memberId,
+              type: TransactionType.topUp.value,
+              amount: amount,
+              balanceAfter: Value(newBalance),
+              description: const Value('Nạp tiền tài khoản'),
+            ),
+          );
+
+      return newBalance;
+    });
   }
-
   /// Deduct from wallet balance for a member.
   ///
   /// [memberId]: The member's ID.
   /// [amount]: Amount to deduct (must be positive).
-  /// Returns the new wallet balance, or throws if insufficient funds.
-  Future<int> deductWallet(String memberId, int amount) async {
+  /// [allowNegative]: If true, allows wallet to go negative (for debt).
+  /// Returns the new wallet balance.
+  Future<int> deductWallet(String memberId, int amount,
+      {bool allowNegative = false}) async {
     if (amount <= 0) {
       throw ArgumentError('Amount must be positive');
     }
@@ -125,8 +149,8 @@ class MemberRepository {
       throw StateError('Không tìm thấy hội viên: $memberId');
     }
 
-    final currentBalance = member.walletBalance ?? 0;
-    if (currentBalance < amount) {
+    final currentBalance = member.walletBalance;
+    if (!allowNegative && currentBalance < amount) {
       throw StateError('Số dư không đủ. Hiện có: $currentBalance VND');
     }
 
@@ -148,9 +172,7 @@ class MemberRepository {
     final member = await getMemberById(memberId);
     if (member == null) {
       throw StateError('Không tìm thấy hội viên: $memberId');
-    }
-
-    final currentPoints = member.points ?? 0;
+    }    final currentPoints = member.points;
     final newPoints = currentPoints + pointsToAdd;
 
     // Ensure points don't go negative
@@ -169,7 +191,7 @@ class MemberRepository {
     if (member == null) {
       throw StateError('Không tìm thấy hội viên: $memberId');
     }
-    return member.walletBalance ?? 0;
+    return member.walletBalance;
   }
 
   /// Get points for a member.
@@ -178,6 +200,6 @@ class MemberRepository {
     if (member == null) {
       throw StateError('Không tìm thấy hội viên: $memberId');
     }
-    return member.points ?? 0;
+    return member.points;
   }
 }

@@ -55,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -82,6 +82,60 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'ALTER TABLE loans ADD COLUMN renewal_count INTEGER NOT NULL DEFAULT 0',
           );
+        }
+
+        // Migration from v3 to v4:
+        // - Recreate reservations table with TEXT status column
+        // (Previous version used INT, new version uses TEXT: 'Active', 'Fulfilled', 'Cancelled')
+        if (from < 4) {
+          // Drop old table if exists and recreate
+          await customStatement('DROP TABLE IF EXISTS reservations');
+          await customStatement('''
+            CREATE TABLE reservations (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              book_id TEXT NOT NULL REFERENCES books(id),
+              member_id TEXT NOT NULL REFERENCES members(id),
+              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+              status TEXT NOT NULL DEFAULT 'Active'
+            )
+          ''');
+        }
+
+        // Migration from v4 to v5:
+        // - Recreate transactions table with new schema
+        // - Recreate fines table with new schema
+        if (from < 5) {
+          // Backup old transactions data if needed
+          await customStatement('DROP TABLE IF EXISTS transactions');
+          await customStatement('''
+            CREATE TABLE transactions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              member_id TEXT NOT NULL REFERENCES members(id),
+              type TEXT NOT NULL,
+              amount INTEGER NOT NULL,
+              balance_after INTEGER NOT NULL DEFAULT 0,
+              fine_id INTEGER NULL,
+              loan_id INTEGER NULL,
+              description TEXT NULL,
+              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+            )
+          ''');
+
+          // Recreate fines table with new schema
+          await customStatement('DROP TABLE IF EXISTS fines');
+          await customStatement('''
+            CREATE TABLE fines (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              member_id TEXT NOT NULL REFERENCES members(id),
+              loan_id INTEGER NOT NULL REFERENCES loans(id),
+              amount INTEGER NOT NULL,
+              reason TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'Pending',
+              overdue_days INTEGER NOT NULL DEFAULT 0,
+              paid_at INTEGER NULL,
+              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+            )
+          ''');
         }
       },
     );

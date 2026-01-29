@@ -1,20 +1,39 @@
 import 'package:drift/drift.dart';
 
-// Drift table: Fines
+import 'loans.dart';
+import 'members.dart';
 
+/// Fines table for tracking penalties.
+/// Records fines for overdue books, damages, or lost items.
 class Fines extends Table {
+  @override
+  String get tableName => 'fines';
+
   IntColumn get id => integer().autoIncrement()();
 
-  DateTimeColumn get createdAt => dateTime().nullable()();
+  /// Member who owes this fine (FK -> Members.id).
+  TextColumn get memberId =>
+      text().withLength(min: 1, max: 10).references(Members, #id)();
 
-  /// Total fine amount in VND.
-  IntColumn get totalAmount => integer().nullable()();
+  /// Related loan (FK -> Loans.id).
+  IntColumn get loanId => integer().references(Loans, #id)();
 
-  TextColumn get reason => text().nullable().withLength(min: 0, max: 200)();
+  /// Fine amount in VND.
+  IntColumn get amount => integer()();
 
-  /// SQL TrangThai bit.
-  BoolColumn get isPaid => boolean().nullable()();
+  /// Reason: 'Overdue', 'Damaged', 'Lost'.
+  TextColumn get reason => text().withLength(min: 1, max: 50)();
 
-  TextColumn get memberId => text().withLength(min: 1, max: 10)();
-  TextColumn get loanId => text().withLength(min: 1, max: 15)();
+  /// Status: 'Pending', 'Paid', 'Waived'.
+  TextColumn get status =>
+      text().withLength(min: 1, max: 20).withDefault(const Constant('Pending'))();
+
+  /// Number of overdue days (for overdue fines).
+  IntColumn get overdueDays => integer().withDefault(const Constant(0))();
+
+  /// Date when fine was paid (null if not paid).
+  DateTimeColumn get paidAt => dateTime().nullable()();
+
+  /// Timestamp when fine was created.
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }

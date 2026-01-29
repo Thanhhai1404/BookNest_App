@@ -5,11 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/db/app_database.dart';
 import '../../../data/repositories/member_repository.dart';
 
-/// Provider for repository
-final memberRepositoryProvider = Provider<MemberRepository>((ref) {
-  final db = ref.watch(databaseProvider);
-  return MemberRepository(db);
-});
+// Re-export memberRepositoryProvider for backward compatibility
+export '../../../data/repositories/member_repository.dart'
+    show memberRepositoryProvider;
 
 class MemberListState {
   const MemberListState({

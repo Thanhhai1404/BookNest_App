@@ -46,7 +46,7 @@ class ReservationRepository {
           ReservationsCompanion.insert(
             bookId: bookId,
             memberId: memberId,
-            status: drift.Value(ReservationStatus.active.code),
+            status: drift.Value(ReservationStatus.active.value),
           ),
         );
   }
@@ -66,7 +66,7 @@ class ReservationRepository {
     ]);
 
     query.where(r.bookId.equals(bookId) &
-        r.status.equals(ReservationStatus.active.code));
+        r.status.equals(ReservationStatus.active.value));
     query.orderBy([drift.OrderingTerm.asc(r.createdAt)]);
     query.limit(1);
 
@@ -94,8 +94,40 @@ class ReservationRepository {
           ..where((r) =>
               r.memberId.equals(memberId) &
               r.bookId.equals(bookId) &
-              r.status.equals(ReservationStatus.active.code)))
+              r.status.equals(ReservationStatus.active.value)))
         .getSingleOrNull();
+  }
+
+  /// Get all active reservations for a specific book (ordered by createdAt).
+  Future<List<ReservationWithDetails>> getReservationsByBook(
+      String bookId) async {
+    final r = db.reservations;
+    final m = db.members;
+    final b = db.books;
+
+    final query = db.select(r).join([
+      drift.innerJoin(m, m.id.equalsExp(r.memberId)),
+      drift.innerJoin(b, b.id.equalsExp(r.bookId)),
+    ]);
+
+    query.where(
+        r.bookId.equals(bookId) & r.status.equals(ReservationStatus.active.value));
+    query.orderBy([drift.OrderingTerm.asc(r.createdAt)]);
+
+    final rows = await query.get();
+
+    return rows.map((row) {
+      final reservation = row.readTable(r);
+      final member = row.readTable(m);
+      final book = row.readTable(b);
+
+      return ReservationWithDetails(
+        reservation: reservation,
+        memberName: _formatMemberName(member),
+        memberId: member.id,
+        bookTitle: book.title ?? book.id,
+      );
+    }).toList();
   }
 
   /// Get all active reservations.
@@ -109,7 +141,7 @@ class ReservationRepository {
       drift.innerJoin(b, b.id.equalsExp(r.bookId)),
     ]);
 
-    query.where(r.status.equals(ReservationStatus.active.code));
+    query.where(r.status.equals(ReservationStatus.active.value));
     query.orderBy([drift.OrderingTerm.asc(r.createdAt)]);
 
     final rows = await query.get();
@@ -133,7 +165,7 @@ class ReservationRepository {
     await (db.update(db.reservations)
           ..where((r) => r.id.equals(reservationId)))
         .write(ReservationsCompanion(
-      status: drift.Value(ReservationStatus.fulfilled.code),
+      status: drift.Value(ReservationStatus.fulfilled.value),
     ));
   }
 
@@ -142,7 +174,7 @@ class ReservationRepository {
     await (db.update(db.reservations)
           ..where((r) => r.id.equals(reservationId)))
         .write(ReservationsCompanion(
-      status: drift.Value(ReservationStatus.cancelled.code),
+      status: drift.Value(ReservationStatus.cancelled.value),
     ));
   }
 
@@ -152,7 +184,7 @@ class ReservationRepository {
     final query = db.selectOnly(db.reservations)
       ..addColumns([countExp])
       ..where(db.reservations.bookId.equals(bookId) &
-          db.reservations.status.equals(ReservationStatus.active.code));
+          db.reservations.status.equals(ReservationStatus.active.value));
 
     final row = await query.getSingle();
     return row.read(countExp) ?? 0;

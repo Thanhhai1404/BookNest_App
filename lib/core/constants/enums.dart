@@ -67,19 +67,71 @@ enum Role {
   }
 }
 
-/// Reservation status for book reservations.
+/// Reservation status for book reservations (stored as text in DB).
 enum ReservationStatus {
-  active(0),
-  fulfilled(1),
-  cancelled(2);
+  active('Active'),
+  fulfilled('Fulfilled'),
+  cancelled('Cancelled');
 
-  const ReservationStatus(this.code);
-  final int code;
+  const ReservationStatus(this.value);
+  final String value;
 
-  static ReservationStatus fromCode(int code) {
+  static ReservationStatus fromValue(String value) {
     return ReservationStatus.values.firstWhere(
-      (e) => e.code == code,
+      (e) => e.value.toLowerCase() == value.toLowerCase(),
       orElse: () => ReservationStatus.active,
+    );
+  }
+}
+
+/// Transaction type for wallet transactions (stored as text in DB).
+enum TransactionType {
+  topUp('TopUp'),           // Nạp tiền vào ví
+  payment('Payment'),        // Thanh toán (phí mượn, phí trễ, etc.)
+  refund('Refund'),          // Hoàn tiền
+  finePayment('FinePayment'); // Thanh toán phạt
+
+  const TransactionType(this.value);
+  final String value;
+
+  static TransactionType fromValue(String value) {
+    return TransactionType.values.firstWhere(
+      (e) => e.value.toLowerCase() == value.toLowerCase(),
+      orElse: () => TransactionType.payment,
+    );
+  }
+}
+
+/// Fine status for tracking fine payments (stored as text in DB).
+enum FineStatus {
+  pending('Pending'),       // Chưa thanh toán
+  paid('Paid'),             // Đã thanh toán
+  waived('Waived');         // Được miễn
+
+  const FineStatus(this.value);
+  final String value;
+
+  static FineStatus fromValue(String value) {
+    return FineStatus.values.firstWhere(
+      (e) => e.value.toLowerCase() == value.toLowerCase(),
+      orElse: () => FineStatus.pending,
+    );
+  }
+}
+
+/// Fine reason for categorizing fines.
+enum FineReason {
+  overdue('Overdue'),       // Trả sách trễ
+  damaged('Damaged'),       // Sách bị hư hỏng
+  lost('Lost');             // Mất sách
+
+  const FineReason(this.value);
+  final String value;
+
+  static FineReason fromValue(String value) {
+    return FineReason.values.firstWhere(
+      (e) => e.value.toLowerCase() == value.toLowerCase(),
+      orElse: () => FineReason.overdue,
     );
   }
 }

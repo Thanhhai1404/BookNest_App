@@ -56,14 +56,13 @@ class LoanViewModel extends AsyncNotifier<LoanListState> {
       copyId: copyId,
       dueDate: dueDate,
     );
-    await refresh();
-  }  /// Return a borrowed book by loan ID.
-  /// Returns the bookId so UI can check for reservations.
-  Future<String> returnBook(int loanId) async {
+    await refresh();  }  /// Return a borrowed book by loan ID.
+  /// Returns the ReturnBookResult containing bookId and fine info.
+  Future<ReturnBookResult> returnBook(int loanId) async {
     final repo = ref.read(loanRepositoryProvider);
-    final bookId = await repo.returnBook(loanId);
+    final result = await repo.returnBook(loanId);
     ref.invalidateSelf();
-    return bookId;
+    return result;
   }
 
   /// Renew a loan - extends due date by 7 days.

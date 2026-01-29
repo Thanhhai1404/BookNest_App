@@ -7,6 +7,9 @@ import '../data/repositories/loan_repository.dart';
 import 'borrow_book_page.dart';
 import 'loan_view_model.dart';
 
+/// Currency formatter for VND
+final _currencyFormat = NumberFormat('#,###', 'vi_VN');
+
 class LoanListPage extends ConsumerWidget {
   const LoanListPage({super.key});
 
@@ -371,154 +374,137 @@ class _LoanCard extends ConsumerWidget {
         }
       }
     }
-  }
-  Future<void> _confirmReturn(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận trả sách'),
-        content: Text(
-          'Xác nhận trả cuốn "${item.bookTitle}" (${item.copyId})?\n\n'
-          'Người mượn: ${item.memberName}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Hủy'),
+  }  Future<void> _confirmReturn(BuildContext context, WidgetRef ref) async {
+    // First, check if there's an active reservation for this book
+    final reservationRepo = ref.read(reservationRepositoryProvider);
+    final reservation =
+        await reservationRepo.getActiveReservationForBook(item.bookId);
+
+    // Show different dialogs based on reservation status
+    if (reservation != null) {
+      // Show warning dialog: Book is reserved!
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          icon: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.warning_amber_rounded,
+              size: 48,
+              color: Colors.orange.shade700,
+            ),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Xác nhận'),
+          title: const Text(
+            '⚠️ SÁCH ĐÃ ĐƯỢC ĐẶT TRƯỚC',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      try {
-        // Return the book and get the bookId
-        final bookId = await ref
-            .read(loanViewModelProvider.notifier)
-            .returnBook(item.loan.id);
-
-        // Check if there's an active reservation for this book
-        final reservationRepo = ref.read(reservationRepositoryProvider);
-        final reservation =
-            await reservationRepo.getActiveReservationForBook(bookId);
-
-        if (reservation != null && context.mounted) {
-          // Show important reservation alert
-          await showDialog<void>(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => AlertDialog(
-              icon: Container(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade100,
-                  shape: BoxShape.circle,
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
                 ),
-                child: Icon(
-                  Icons.notification_important,
-                  size: 48,
-                  color: Colors.orange.shade700,
-                ),
-              ),
-              title: const Text(
-                '🔔 Sách được đặt trước!',
-                textAlign: TextAlign.center,
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade200),
+                child: Column(
+                  children: [
+                    Text(
+                      'Sách này được đặt bởi khách:',
+                      style: TextStyle(color: Colors.grey.shade700),
                     ),
-                    child: Column(
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.person,
-                                color: Colors.orange.shade700, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                reservation.memberName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(Icons.badge,
-                                color: Colors.orange.shade700, size: 20),
-                            const SizedBox(width: 8),
-                            Text('Mã: ${reservation.memberId}'),
-                          ],
+                        Icon(Icons.person,
+                            color: Colors.orange.shade700, size: 24),
+                        const SizedBox(width: 8),
+                        Text(
+                          reservation.memberName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Vui lòng giữ sách "${item.bookTitle}" tại quầy và liên hệ hội viên!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                ],
-              ),
-              actions: [
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () async {
-                      // Mark reservation as fulfilled
-                      await reservationRepo
-                          .fulfillReservation(reservation.reservation.id);
-                      if (ctx.mounted) {
-                        Navigator.of(ctx).pop();
-                      }
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mã HV: ${reservation.memberId}',
+                      style: Theme.of(ctx).textTheme.bodySmall,
                     ),
-                    child: const Text('Đã hiểu - Giữ sách tại quầy'),
-                  ),
+                  ],
                 ),
-              ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.red.shade700),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Vui lòng GIỮ LẠI QUẦY và liên hệ hội viên!',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Hủy'),
             ),
-          );
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Đã hiểu & Trả sách'),
+            ),
+          ],
+        ),
+      );      if (confirmed != true || !context.mounted) return;
 
-          if (context.mounted) {
+      // Process the return
+      try {
+        final result = await ref
+            .read(loanViewModelProvider.notifier)
+            .returnBook(item.loan.id);
+
+        // Mark reservation as fulfilled
+        await reservationRepo.fulfillReservation(reservation.reservation.id);
+
+        if (context.mounted) {
+          // Show appropriate message based on fine
+          if (result.isOverdue && result.fineAmount > 0) {
+            _showFineResultDialog(context, result, reservation.memberName);
+          } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Trả sách thành công! Đã thông báo đặt trước cho ${reservation.memberName}.',
+                  'Trả sách thành công! Giữ sách cho ${reservation.memberName}.',
                 ),
                 backgroundColor: Colors.orange.shade600,
                 behavior: SnackBarBehavior.floating,
               ),
             );
           }
-        } else if (context.mounted) {
-          // Normal return, no reservation
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Trả sách thành công!'),
-              backgroundColor: Colors.green.shade600,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
         }
       } catch (e) {
         if (context.mounted) {
@@ -531,7 +517,231 @@ class _LoanCard extends ConsumerWidget {
           );
         }
       }
-    }
+    } else {
+      // No reservation - show normal confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Xác nhận trả sách'),
+          content: Text(
+            'Xác nhận trả cuốn "${item.bookTitle}" (${item.copyId})?\n\n'
+            'Người mượn: ${item.memberName}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Xác nhận'),
+            ),
+          ],
+        ),
+      );      if (confirmed != true || !context.mounted) return;
+
+      try {
+        final result = await ref
+            .read(loanViewModelProvider.notifier)
+            .returnBook(item.loan.id);
+
+        if (context.mounted) {
+          // Show appropriate message based on fine
+          if (result.isOverdue && result.fineAmount > 0) {
+            _showFineResultDialog(context, result);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Trả sách thành công!'),
+                backgroundColor: Colors.green.shade600,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi: $e'),
+              backgroundColor: Colors.red.shade600,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }    }
+  }
+
+  /// Show dialog with fine information after returning overdue book.
+  void _showFineResultDialog(
+    BuildContext context,
+    ReturnBookResult result, [
+    String? reservedForMember,
+  ]) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.red.shade100,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.warning_amber_rounded,
+            size: 48,
+            color: Colors.red.shade700,
+          ),
+        ),
+        title: const Text(
+          'SÁCH TRẢ TRỄ - ĐÃ TÍNH PHẠT',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Số ngày trễ:'),
+                      Text(
+                        '${result.lateDays} ngày',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Mức phạt/ngày:'),
+                      Text(
+                        '${_currencyFormat.format(kFineRatePerDay)} VND',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Tổng phạt:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        '-${_currencyFormat.format(result.fineAmount)} VND',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.red.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (result.newBalance != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: result.newBalance! < 0
+                      ? Colors.orange.shade50
+                      : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: result.newBalance! < 0
+                        ? Colors.orange.shade200
+                        : Colors.green.shade200,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.account_balance_wallet,
+                      color: result.newBalance! < 0
+                          ? Colors.orange.shade700
+                          : Colors.green.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Số dư ví: ${_currencyFormat.format(result.newBalance)} VND',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: result.newBalance! < 0
+                            ? Colors.orange.shade700
+                            : Colors.green.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (result.newBalance != null && result.newBalance! < 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                '⚠️ Ví đang nợ! Vui lòng yêu cầu hội viên nạp tiền.',
+                style: TextStyle(
+                  color: Colors.orange.shade700,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            if (reservedForMember != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.bookmark, color: Colors.blue.shade700),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Giữ sách cho: $reservedForMember',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

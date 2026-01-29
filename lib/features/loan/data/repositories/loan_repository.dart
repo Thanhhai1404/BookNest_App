@@ -4,6 +4,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/enums.dart';
 import '../../../../data/db/app_database.dart';
 
+/// Fine rate: VND per overdue day.
+const int kFineRatePerDay = 2000;
+
+/// Result of returning a book, includes fine information if overdue.
+class ReturnBookResult {
+  const ReturnBookResult({
+    required this.bookId,
+    required this.isOverdue,
+    required this.lateDays,
+    required this.fineAmount,
+    this.fineId,
+    this.newBalance,
+  });
+
+  final String bookId;
+  final bool isOverdue;
+  final int lateDays;
+  final int fineAmount;
+  final int? fineId;
+  final int? newBalance;
+}
+
 /// DTO for displaying loan info with related member & book details.
 class LoanWithDetails {
   const LoanWithDetails({
@@ -149,8 +171,9 @@ class LoanRepository {
 
   /// Return a borrowed book: updates loan status and book copy status.
   ///
-  /// Returns the bookId so caller can check for reservations.
-  Future<String> returnBook(int loanId) async {
+  /// Returns a [ReturnBookResult] containing the bookId and any fine info.
+  /// Automatically calculates and applies fine for overdue returns.
+  Future<ReturnBookResult> returnBook(int loanId) async {
     // Get the loan to find the copyId first (outside transaction for bookId).
     final loan = await (db.select(db.loans)
           ..where((l) => l.id.equals(loanId)))
@@ -167,11 +190,20 @@ class LoanRepository {
       throw StateError('Không tìm thấy bản sao ${loan.copyId}');
     }
 
+    // Calculate late days
+    final now = DateTime.now();
+    final lateDays = now.difference(loan.dueDate).inDays;
+    final isOverdue = lateDays > 0;
+    final fineAmount = isOverdue ? lateDays * kFineRatePerDay : 0;
+
+    int? fineId;
+    int? newBalance;
+
     await db.transaction(() async {
       // Step A: Update loan status to returned.
       await (db.update(db.loans)..where((l) => l.id.equals(loanId))).write(
         LoansCompanion(
-          returnDate: drift.Value(DateTime.now()),
+          returnDate: drift.Value(now),
           status: drift.Value(LoanStatus.returned.code),
         ),
       );
@@ -181,9 +213,68 @@ class LoanRepository {
           .write(BookCopiesCompanion(
         status: drift.Value(BookStatus.available.code),
       ));
+
+      // Step C: If overdue, create fine and deduct wallet
+      if (isOverdue && fineAmount > 0) {
+        // Create fine record
+        fineId = await db.into(db.fines).insert(
+              FinesCompanion.insert(
+                memberId: loan.memberId,
+                loanId: loanId,
+                amount: fineAmount,
+                reason: FineReason.overdue.value,
+                overdueDays: drift.Value(lateDays),
+              ),
+            );
+
+        // Get member's current balance
+        final member = await (db.select(db.members)
+              ..where((m) => m.id.equals(loan.memberId)))
+            .getSingleOrNull();
+
+        if (member != null) {
+          final currentBalance = member.walletBalance;
+          // Allow negative balance (debt)
+          newBalance = currentBalance - fineAmount;
+
+          // Update wallet balance
+          await (db.update(db.members)
+                ..where((m) => m.id.equals(loan.memberId)))
+              .write(MembersCompanion(walletBalance: drift.Value(newBalance!)));
+
+          // Create transaction record for fine
+          await db.into(db.transactions).insert(
+                TransactionsCompanion.insert(
+                  memberId: loan.memberId,
+                  type: TransactionType.finePayment.value,
+                  amount: -fineAmount, // Negative for debit
+                  balanceAfter: drift.Value(newBalance!),
+                  fineId: drift.Value(fineId),
+                  loanId: drift.Value(loanId),
+                  description: drift.Value(
+                    'Phạt trả sách trễ $lateDays ngày - Phiếu mượn #$loanId',
+                  ),
+                ),
+              );
+
+          // Update fine status to Paid (auto-deducted)
+          await (db.update(db.fines)..where((f) => f.id.equals(fineId!)))
+              .write(FinesCompanion(
+            status: drift.Value(FineStatus.paid.value),
+            paidAt: drift.Value(now),
+          ));
+        }
+      }
     });
 
-    return copy.bookId;
+    return ReturnBookResult(
+      bookId: copy.bookId,
+      isOverdue: isOverdue,
+      lateDays: lateDays,
+      fineAmount: fineAmount,
+      fineId: fineId,
+      newBalance: newBalance,
+    );
   }
 
   /// Maximum number of renewals allowed per loan.

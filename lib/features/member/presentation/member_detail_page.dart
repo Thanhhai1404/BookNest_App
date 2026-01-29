@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/constants/enums.dart';
 import '../../../data/db/app_database.dart';
+import '../../../data/repositories/finance_repository.dart';
 import 'member_form_page.dart';
 import 'member_view_model.dart';
 
@@ -17,6 +19,13 @@ final _currencyFormat = NumberFormat('#,###', 'vi_VN');
 final memberDetailProvider =
     FutureProvider.family.autoDispose<Member?, String>((ref, memberId) {
   return ref.watch(memberRepositoryProvider).getMemberById(memberId);
+});
+
+/// Provider for member's transaction history
+final memberTransactionsProvider =
+    FutureProvider.family.autoDispose<List<Transaction>, String>(
+        (ref, memberId) {
+  return ref.watch(financeRepositoryProvider).getTransactionsByMember(memberId);
 });
 
 class MemberDetailPage extends ConsumerWidget {
@@ -77,8 +86,7 @@ class MemberDetailPage extends ConsumerWidget {
                 icon: const Icon(Icons.delete_outline),
               ),
             ],
-          ),
-          body: ListView(
+          ),          body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               // --- Member Info Card ---
@@ -90,6 +98,10 @@ class MemberDetailPage extends ConsumerWidget {
                 member: member,
                 onTopUp: () => _showTopUpDialog(context, ref, member),
               ),
+              const SizedBox(height: 16),
+
+              // --- Transaction History Card ---
+              _TransactionHistoryCard(memberId: memberId),
               const SizedBox(height: 16),
 
               // --- Other Info Card ---
@@ -142,13 +154,12 @@ class MemberDetailPage extends ConsumerWidget {
     final result = await showDialog<int>(
       context: context,
       builder: (ctx) => _TopUpDialog(member: member),
-    );
-
-    if (result != null && result > 0) {
+    );    if (result != null && result > 0) {
       try {
         await ref.read(memberRepositoryProvider).topUpWallet(member.id, result);
         // Refresh data
         ref.invalidate(memberDetailProvider(memberId));
+        ref.invalidate(memberTransactionsProvider(memberId));
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -357,12 +368,279 @@ class _WalletPointsCard extends StatelessWidget {
                 onPressed: onTopUp,
                 icon: const Icon(Icons.add_card),
                 label: const Text('Nạp tiền vào ví'),
+              ),            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Transaction History Card
+class _TransactionHistoryCard extends ConsumerWidget {
+  const _TransactionHistoryCard({required this.memberId});
+
+  final String memberId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final transactionsAsync = ref.watch(memberTransactionsProvider(memberId));
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Icon(Icons.history, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Lịch sử Giao dịch',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+
+          // Content
+          transactionsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Lỗi: $e'),
+            ),
+            data: (transactions) {
+              if (transactions.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 48,
+                          color: theme.colorScheme.outline,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Chưa có giao dịch nào',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // Show only last 5 transactions
+              final displayList = transactions.take(5).toList();
+
+              return Column(
+                children: [
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    itemCount: displayList.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final tx = displayList[index];
+                      return _TransactionTile(
+                        transaction: tx,
+                        dateFormat: dateFormat,
+                      );
+                    },
+                  ),
+                  if (transactions.length > 5) ...[
+                    const Divider(height: 1),
+                    TextButton(
+                      onPressed: () => _showAllTransactions(
+                        context,
+                        transactions,
+                        dateFormat,
+                      ),
+                      child: Text('Xem tất cả (${transactions.length})'),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllTransactions(
+    BuildContext context,
+    List<Transaction> transactions,
+    DateFormat dateFormat,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Icon(Icons.history),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Tất cả Giao dịch (${transactions.length})',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // List
+            Expanded(
+              child: ListView.separated(
+                controller: scrollController,
+                itemCount: transactions.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final tx = transactions[index];
+                  return _TransactionTile(
+                    transaction: tx,
+                    dateFormat: dateFormat,
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// Single transaction tile
+class _TransactionTile extends StatelessWidget {
+  const _TransactionTile({
+    required this.transaction,
+    required this.dateFormat,
+  });
+
+  final Transaction transaction;
+  final DateFormat dateFormat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // Determine icon and color based on transaction type
+    final txType = TransactionType.fromValue(transaction.type);
+    final isCredit =
+        txType == TransactionType.topUp || txType == TransactionType.refund;
+
+    final IconData icon;
+    final Color iconColor;
+    final Color amountColor;
+
+    switch (txType) {
+      case TransactionType.topUp:
+        icon = Icons.arrow_upward;
+        iconColor = Colors.green;
+        amountColor = Colors.green;
+        break;
+      case TransactionType.refund:
+        icon = Icons.replay;
+        iconColor = Colors.blue;
+        amountColor = Colors.blue;
+        break;
+      case TransactionType.payment:
+      case TransactionType.finePayment:
+        icon = Icons.arrow_downward;
+        iconColor = Colors.red;
+        amountColor = Colors.red;
+        break;
+    }
+
+    final amountText = isCredit
+        ? '+${_currencyFormat.format(transaction.amount)}'
+        : _currencyFormat.format(transaction.amount);
+
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withAlpha(25),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
+      title: Text(
+        transaction.description ?? _getDefaultDescription(txType),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        dateFormat.format(transaction.createdAt),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.outline,
+        ),
+      ),
+      trailing: Text(
+        '$amountText VND',
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: amountColor,
+        ),
+      ),
+    );
+  }
+
+  String _getDefaultDescription(TransactionType type) {
+    switch (type) {
+      case TransactionType.topUp:
+        return 'Nạp tiền';
+      case TransactionType.payment:
+        return 'Thanh toán';
+      case TransactionType.refund:
+        return 'Hoàn tiền';
+      case TransactionType.finePayment:
+        return 'Thanh toán phạt';
+    }
   }
 }
 
