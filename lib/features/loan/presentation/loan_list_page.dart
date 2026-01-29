@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../reservation/data/repositories/reservation_repository.dart';
 import '../data/repositories/loan_repository.dart';
@@ -17,80 +18,195 @@ class LoanListPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(loanViewModelProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Phiếu mượn đang hoạt động'),
-        actions: [
-          IconButton(
-            tooltip: 'Tải lại',
-            onPressed: () => ref.read(loanViewModelProvider.notifier).refresh(),
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
+    return stateAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text('Phiếu mượn')),
+        body: const Center(child: CircularProgressIndicator()),
       ),
-      body: stateAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(
+      error: (e, st) => Scaffold(
+        appBar: AppBar(title: const Text('Phiếu mượn')),
+        body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Text('Lỗi: $e'),
           ),
         ),
-        data: (state) {
-          if (state.activeLoans.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Chưa có phiếu mượn nào.'),
-                ],
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () => ref.read(loanViewModelProvider.notifier).refresh(),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: state.activeLoans.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final item = state.activeLoans[index];
-                return _LoanCard(item: item);
-              },
-            ),
-          );
-        },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final result = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (_) => const BorrowBookPage()),
-          );
-          if (result == true && context.mounted) {
-            ref.read(loanViewModelProvider.notifier).refresh();
-          }
+      data: (state) => _LoanListContent(state: state),
+    );
+  }
+}
+
+class _LoanListContent extends ConsumerWidget {
+  const _LoanListContent({required this.state});
+
+  final LoanListState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeCount = state.activeLoans.length;
+    final overdueCount = state.overdueLoans.length;
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Phiếu mượn'),
+          actions: [
+            IconButton(
+              tooltip: 'Tải lại',
+              onPressed: () => ref.read(loanViewModelProvider.notifier).refresh(),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+          bottom: TabBar(
+            tabs: [
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Đang mượn'),
+                    if (activeCount > 0) ...[
+                      const SizedBox(width: 8),
+                      _Badge(count: activeCount, color: Colors.green),
+                    ],
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Quá hạn'),
+                    if (overdueCount > 0) ...[
+                      const SizedBox(width: 8),
+                      _Badge(count: overdueCount, color: Colors.red),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // Tab 1: Active loans
+            _LoanListView(
+              loans: state.activeLoans,
+              emptyMessage: 'Không có phiếu mượn đang hoạt động.',
+              showCallButton: false,
+            ),
+            // Tab 2: Overdue loans
+            _LoanListView(
+              loans: state.overdueLoans,
+              emptyMessage: 'Không có phiếu mượn quá hạn.',
+              showCallButton: true,
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () async {
+            final result = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(builder: (_) => const BorrowBookPage()),
+            );
+            if (result == true && context.mounted) {
+              ref.read(loanViewModelProvider.notifier).refresh();
+            }
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('Mượn sách'),
+        ),
+      ),
+    );
+  }
+}
+
+/// Badge widget for tab counts
+class _Badge extends StatelessWidget {
+  const _Badge({required this.count, required this.color});
+
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        count.toString(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// Reusable loan list view
+class _LoanListView extends ConsumerWidget {
+  const _LoanListView({
+    required this.loans,
+    required this.emptyMessage,
+    required this.showCallButton,
+  });
+
+  final List<LoanWithDetails> loans;
+  final String emptyMessage;
+  final bool showCallButton;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (loans.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              showCallButton ? Icons.check_circle_outline : Icons.inbox_outlined,
+              size: 64,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(emptyMessage),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(loanViewModelProvider.notifier).refresh(),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: loans.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final item = loans[index];
+          return _LoanCard(item: item, showCallButton: showCallButton);
         },
-        icon: const Icon(Icons.add),
-        label: const Text('Mượn sách'),
       ),
     );
   }
 }
 
 class _LoanCard extends ConsumerWidget {
-  const _LoanCard({required this.item});
+  const _LoanCard({required this.item, this.showCallButton = false});
 
   final LoanWithDetails item;
+  final bool showCallButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final dateFormat = DateFormat('dd/MM/yyyy');
 
-    final isOverdue = item.loan.dueDate.isBefore(DateTime.now());
+    final isOverdue = item.isOverdue;
+    final overdueDays = item.overdueDays;
     final statusColor = isOverdue ? Colors.red : Colors.green;
     final statusLabel = isOverdue ? 'Quá hạn' : 'Đang mượn';
 
@@ -105,6 +221,42 @@ class _LoanCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Overdue warning banner
+            if (isOverdue && showCallButton) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.red.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Trễ $overdueDays ngày',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Phạt dự kiến: ${_currencyFormat.format(overdueDays * 2000)}đ',
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
             // Header: Member name + status badge
             Row(
               children: [
@@ -194,9 +346,31 @@ class _LoanCard extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),            // Return book button
+            const SizedBox(height: 16),
+
+            // Action buttons
             Row(
               children: [
+                // Phone call button (for overdue loans)
+                if (showCallButton && item.memberPhone != null) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _makePhoneCall(context, item.memberPhone!),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.orange.shade700,
+                        side: BorderSide(color: Colors.orange.shade300),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.phone),
+                      label: const Text('Gọi điện'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+
                 // Renew button
                 Expanded(
                   child: OutlinedButton.icon(
@@ -244,7 +418,36 @@ class _LoanCard extends ConsumerWidget {
           ],
         ),
       ),
-    );  }
+    );
+  }
+
+  /// Make a phone call to the member
+  Future<void> _makePhoneCall(BuildContext context, String phoneNumber) async {
+    final uri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Không thể gọi đến số: $phoneNumber'),
+              backgroundColor: Colors.red.shade600,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi gọi điện: $e'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+      }
+    }
+  }
 
   /// Check if this loan can be renewed (max 2 times).
   bool _canRenew(LoanWithDetails item) {
@@ -374,15 +577,14 @@ class _LoanCard extends ConsumerWidget {
         }
       }
     }
-  }  Future<void> _confirmReturn(BuildContext context, WidgetRef ref) async {
-    // First, check if there's an active reservation for this book
+  }
+
+  Future<void> _confirmReturn(BuildContext context, WidgetRef ref) async {
     final reservationRepo = ref.read(reservationRepositoryProvider);
     final reservation =
         await reservationRepo.getActiveReservationForBook(item.bookId);
 
-    // Show different dialogs based on reservation status
     if (reservation != null) {
-      // Show warning dialog: Book is reserved!
       final confirmed = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -479,19 +681,18 @@ class _LoanCard extends ConsumerWidget {
             ),
           ],
         ),
-      );      if (confirmed != true || !context.mounted) return;
+      );
 
-      // Process the return
+      if (confirmed != true || !context.mounted) return;
+
       try {
         final result = await ref
             .read(loanViewModelProvider.notifier)
             .returnBook(item.loan.id);
 
-        // Mark reservation as fulfilled
         await reservationRepo.fulfillReservation(reservation.reservation.id);
 
         if (context.mounted) {
-          // Show appropriate message based on fine
           if (result.isOverdue && result.fineAmount > 0) {
             _showFineResultDialog(context, result, reservation.memberName);
           } else {
@@ -518,7 +719,6 @@ class _LoanCard extends ConsumerWidget {
         }
       }
     } else {
-      // No reservation - show normal confirmation dialog
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -538,7 +738,9 @@ class _LoanCard extends ConsumerWidget {
             ),
           ],
         ),
-      );      if (confirmed != true || !context.mounted) return;
+      );
+
+      if (confirmed != true || !context.mounted) return;
 
       try {
         final result = await ref
@@ -546,7 +748,6 @@ class _LoanCard extends ConsumerWidget {
             .returnBook(item.loan.id);
 
         if (context.mounted) {
-          // Show appropriate message based on fine
           if (result.isOverdue && result.fineAmount > 0) {
             _showFineResultDialog(context, result);
           } else {
@@ -569,10 +770,10 @@ class _LoanCard extends ConsumerWidget {
             ),
           );
         }
-      }    }
+      }
+    }
   }
 
-  /// Show dialog with fine information after returning overdue book.
   void _showFineResultDialog(
     BuildContext context,
     ReturnBookResult result, [

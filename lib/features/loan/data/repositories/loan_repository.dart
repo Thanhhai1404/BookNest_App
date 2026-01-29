@@ -31,6 +31,8 @@ class LoanWithDetails {
   const LoanWithDetails({
     required this.loan,
     required this.memberName,
+    required this.memberId,
+    required this.memberPhone,
     required this.bookTitle,
     required this.copyId,
     required this.bookId,
@@ -38,9 +40,21 @@ class LoanWithDetails {
 
   final Loan loan;
   final String memberName;
+  final String memberId;
+  final String? memberPhone;
   final String bookTitle;
   final String copyId;
   final String bookId;
+
+  /// Calculate overdue days (0 if not overdue)
+  int get overdueDays {
+    if (loan.returnDate != null) return 0; // Already returned
+    final days = DateTime.now().difference(loan.dueDate).inDays;
+    return days > 0 ? days : 0;
+  }
+
+  /// Check if loan is overdue
+  bool get isOverdue => overdueDays > 0;
 }
 
 class LoanRepository {
@@ -99,9 +113,7 @@ class LoanRepository {
     // Filter only active loans (status = 0 or 1, i.e., not returned).
     query.where(
         l.status.isIn([LoanStatus.active.code, LoanStatus.overdue.code]));
-    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);
-
-    final rows = await query.get();    return rows.map((row) {
+    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);    final rows = await query.get();    return rows.map((row) {
       final loan = row.readTable(l);
       final member = row.readTable(m);
       final book = row.readTable(b);
@@ -113,6 +125,8 @@ class LoanRepository {
       return LoanWithDetails(
         loan: loan,
         memberName: memberName,
+        memberId: member.id,
+        memberPhone: member.phone,
         bookTitle: bookTitle,
         copyId: copy.id,
         bookId: book.id,
@@ -133,9 +147,7 @@ class LoanRepository {
       drift.innerJoin(b, b.id.equalsExp(bc.bookId)),
     ]);
 
-    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);
-
-    final rows = await query.get();
+    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);    final rows = await query.get();
 
     return rows.map((row) {
       final loan = row.readTable(l);
@@ -149,13 +161,14 @@ class LoanRepository {
       return LoanWithDetails(
         loan: loan,
         memberName: memberName,
+        memberId: member.id,
+        memberPhone: member.phone,
         bookTitle: bookTitle,
         copyId: copy.id,
         bookId: book.id,
       );
     }).toList();
   }
-
   /// Get the bookId for a loan (used to check reservations before return).
   Future<String?> getBookIdForLoan(int loanId) async {
     final loan = await (db.select(db.loans)
@@ -167,6 +180,91 @@ class LoanRepository {
           ..where((c) => c.id.equals(loan.copyId)))
         .getSingleOrNull();
     return copy?.bookId;
+  }
+
+  /// Get all overdue loans (active loans with dueDate < now).
+  ///
+  /// Ordered by overdue days descending (most overdue first).
+  Future<List<LoanWithDetails>> getOverdueLoans() async {
+    final l = db.loans;
+    final m = db.members;
+    final bc = db.bookCopies;
+    final b = db.books;
+
+    final query = db.select(l).join([
+      drift.innerJoin(m, m.id.equalsExp(l.memberId)),
+      drift.innerJoin(bc, bc.id.equalsExp(l.copyId)),
+      drift.innerJoin(b, b.id.equalsExp(bc.bookId)),
+    ]);
+
+    final now = DateTime.now();
+
+    // Filter: active status AND dueDate < now AND not returned
+    query.where(
+      l.status.isIn([LoanStatus.active.code, LoanStatus.overdue.code]) &
+          l.dueDate.isSmallerThanValue(now) &
+          l.returnDate.isNull(),
+    );
+
+    // Order by due date ascending (most overdue first)
+    query.orderBy([drift.OrderingTerm.asc(l.dueDate)]);
+
+    final rows = await query.get();
+
+    return rows.map((row) {
+      final loan = row.readTable(l);
+      final member = row.readTable(m);
+      final book = row.readTable(b);
+      final copy = row.readTable(bc);
+
+      return LoanWithDetails(
+        loan: loan,
+        memberName: _formatMemberName(member),
+        memberId: member.id,
+        memberPhone: member.phone,
+        bookTitle: book.title ?? book.id,
+        copyId: copy.id,
+        bookId: book.id,
+      );
+    }).toList();
+  }
+
+  /// Get all loans for a specific member (full history).
+  ///
+  /// Includes both active and returned loans, ordered by borrow date desc.
+  Future<List<LoanWithDetails>> getLoansByMember(String memberId) async {
+    final l = db.loans;
+    final m = db.members;
+    final bc = db.bookCopies;
+    final b = db.books;
+
+    final query = db.select(l).join([
+      drift.innerJoin(m, m.id.equalsExp(l.memberId)),
+      drift.innerJoin(bc, bc.id.equalsExp(l.copyId)),
+      drift.innerJoin(b, b.id.equalsExp(bc.bookId)),
+    ]);
+
+    query.where(l.memberId.equals(memberId));
+    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);
+
+    final rows = await query.get();
+
+    return rows.map((row) {
+      final loan = row.readTable(l);
+      final member = row.readTable(m);
+      final book = row.readTable(b);
+      final copy = row.readTable(bc);
+
+      return LoanWithDetails(
+        loan: loan,
+        memberName: _formatMemberName(member),
+        memberId: member.id,
+        memberPhone: member.phone,
+        bookTitle: book.title ?? book.id,
+        copyId: copy.id,
+        bookId: book.id,
+      );
+    }).toList();
   }
 
   /// Return a borrowed book: updates loan status and book copy status.

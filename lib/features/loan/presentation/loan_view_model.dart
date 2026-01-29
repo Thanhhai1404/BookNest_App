@@ -22,9 +22,11 @@ class AvailableCopyInfo {
 class LoanListState {
   const LoanListState({
     required this.activeLoans,
+    required this.overdueLoans,
   });
 
   final List<LoanWithDetails> activeLoans;
+  final List<LoanWithDetails> overdueLoans;
 }
 
 /// ViewModel for loan list and borrow operations.
@@ -33,7 +35,11 @@ class LoanViewModel extends AsyncNotifier<LoanListState> {
   Future<LoanListState> build() async {
     final repo = ref.watch(loanRepositoryProvider);
     final activeLoans = await repo.getActiveLoans();
-    return LoanListState(activeLoans: activeLoans);
+    final overdueLoans = await repo.getOverdueLoans();
+    return LoanListState(
+      activeLoans: activeLoans,
+      overdueLoans: overdueLoans,
+    );
   }
 
   Future<void> refresh() async {
@@ -41,7 +47,11 @@ class LoanViewModel extends AsyncNotifier<LoanListState> {
     state = await AsyncValue.guard(() async {
       final repo = ref.read(loanRepositoryProvider);
       final activeLoans = await repo.getActiveLoans();
-      return LoanListState(activeLoans: activeLoans);
+      final overdueLoans = await repo.getOverdueLoans();
+      return LoanListState(
+        activeLoans: activeLoans,
+        overdueLoans: overdueLoans,
+      );
     });
   }
 
@@ -109,6 +119,13 @@ final availableCopiesProvider =
     return AvailableCopyInfo(
       copyId: copy.id,
       bookTitle: book.title ?? book.id,
-    );
-  }).toList();
+    );  }).toList();
+});
+
+/// Provider for loading loan history for a specific member.
+final memberLoanHistoryProvider =
+    FutureProvider.family.autoDispose<List<LoanWithDetails>, String>(
+        (ref, memberId) async {
+  final repo = ref.watch(loanRepositoryProvider);
+  return repo.getLoansByMember(memberId);
 });

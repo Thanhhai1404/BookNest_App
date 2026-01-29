@@ -9,6 +9,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/enums.dart';
 import '../../../data/db/app_database.dart';
 import '../../../data/repositories/finance_repository.dart';
+import '../../loan/data/repositories/loan_repository.dart';
+import '../../loan/presentation/loan_view_model.dart';
 import 'member_form_page.dart';
 import 'member_view_model.dart';
 
@@ -98,6 +100,10 @@ class MemberDetailPage extends ConsumerWidget {
                 member: member,
                 onTopUp: () => _showTopUpDialog(context, ref, member),
               ),
+              const SizedBox(height: 16),
+
+              // --- Loan History Card ---
+              _LoanHistoryCard(memberId: memberId),
               const SizedBox(height: 16),
 
               // --- Transaction History Card ---
@@ -929,6 +935,366 @@ class _MemberCardDialog extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Loan History Card - Shows member's book borrowing history
+class _LoanHistoryCard extends ConsumerWidget {
+  const _LoanHistoryCard({required this.memberId});
+
+  final String memberId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final loansAsync = ref.watch(memberLoanHistoryProvider(memberId));
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Icon(Icons.menu_book, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Lịch sử Mượn sách',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+
+          // Content
+          loansAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Lỗi: $e'),
+            ),
+            data: (loans) {
+              if (loans.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.library_books_outlined,
+                          size: 48,
+                          color: theme.colorScheme.outline,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Chưa có lịch sử mượn sách',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // Show only last 5 loans
+              final displayList = loans.take(5).toList();
+
+              return Column(
+                children: [
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    itemCount: displayList.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final loan = displayList[index];
+                      return _LoanHistoryTile(
+                        loan: loan,
+                        dateFormat: dateFormat,
+                      );
+                    },
+                  ),
+                  if (loans.length > 5) ...[
+                    const Divider(height: 1),
+                    TextButton(
+                      onPressed: () => _showAllLoans(context, loans, dateFormat),
+                      child: Text('Xem tất cả (${loans.length})'),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllLoans(
+    BuildContext context,
+    List<LoanWithDetails> loans,
+    DateFormat dateFormat,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Icon(Icons.menu_book),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Lịch sử Mượn sách (${loans.length})',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Statistics row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  _StatChip(
+                    label: 'Tổng',
+                    value: loans.length.toString(),
+                    color: Colors.blue,
+                  ),
+                  const SizedBox(width: 8),
+                  _StatChip(
+                    label: 'Đang mượn',
+                    value: loans
+                        .where((l) => l.loan.returnDate == null)
+                        .length
+                        .toString(),
+                    color: Colors.orange,
+                  ),
+                  const SizedBox(width: 8),
+                  _StatChip(
+                    label: 'Đã trả',
+                    value: loans
+                        .where((l) => l.loan.returnDate != null)
+                        .length
+                        .toString(),
+                    color: Colors.green,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // List
+            Expanded(
+              child: ListView.separated(
+                controller: scrollController,
+                itemCount: loans.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final loan = loans[index];
+                  return _LoanHistoryTile(
+                    loan: loan,
+                    dateFormat: dateFormat,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Stat chip for loan history modal
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withAlpha(100)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tile for loan history item
+class _LoanHistoryTile extends StatelessWidget {
+  const _LoanHistoryTile({
+    required this.loan,
+    required this.dateFormat,
+  });
+
+  final LoanWithDetails loan;
+  final DateFormat dateFormat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isReturned = loan.loan.returnDate != null;
+    final isOverdue = loan.isOverdue;
+
+    // Determine status
+    String statusText;
+    Color statusColor;
+    IconData statusIcon;
+
+    if (isReturned) {
+      statusText = 'Đã trả';
+      statusColor = Colors.green;
+      statusIcon = Icons.check_circle;
+    } else if (isOverdue) {
+      statusText = 'Quá hạn (${loan.overdueDays} ngày)';
+      statusColor = Colors.red;
+      statusIcon = Icons.warning;
+    } else {
+      statusText = 'Đang mượn';
+      statusColor = Colors.orange;
+      statusIcon = Icons.schedule;
+    }
+
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: statusColor.withAlpha(25),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(statusIcon, color: statusColor, size: 20),
+      ),
+      title: Text(
+        loan.bookTitle,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mã: ${loan.copyId} • Phiếu #${loan.loan.id}',
+            style: theme.textTheme.bodySmall,
+          ),
+          Row(
+            children: [
+              Text(
+                'Mượn: ${dateFormat.format(loan.loan.borrowDate)}',
+                style: theme.textTheme.bodySmall,
+              ),
+              if (isReturned) ...[
+                const Text(' → '),
+                Text(
+                  'Trả: ${dateFormat.format(loan.loan.returnDate!)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.green,
+                  ),
+                ),
+              ] else ...[
+                const Text(' • '),
+                Text(
+                  'Hạn: ${dateFormat.format(loan.loan.dueDate)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isOverdue ? Colors.red : null,
+                    fontWeight: isOverdue ? FontWeight.bold : null,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: statusColor.withAlpha(25),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          statusText,
+          style: TextStyle(
+            color: statusColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      isThreeLine: true,
     );
   }
 }
