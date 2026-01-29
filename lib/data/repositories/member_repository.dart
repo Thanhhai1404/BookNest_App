@@ -71,10 +71,16 @@ class MemberRepository {
       final value = int.tryParse(match.group(1) ?? '');
       if (value == null) continue;
       if (value > maxValue) maxValue = value;
-    }
-
-    final next = maxValue + 1;
+    }    final next = maxValue + 1;
     final padded = next.toString().padLeft(3, '0');
     return 'DG$padded';
+  }
+
+  /// Count total members using SQL COUNT(*).
+  Future<int> countMembers() async {
+    final countExp = db.members.id.count();
+    final query = db.selectOnly(db.members)..addColumns([countExp]);
+    final row = await query.getSingle();
+    return row.read(countExp) ?? 0;
   }
 }

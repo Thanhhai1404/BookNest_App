@@ -142,7 +142,6 @@ class BookRepository {
         .go();
     return (db.delete(db.books)..where((b) => b.id.equals(bookId))).go();
   }
-
   String _formatAuthorName(Author? author) {
     if (author == null) return '';
     final parts = <String>[];
@@ -151,6 +150,22 @@ class BookRepository {
       if (v.isNotEmpty) parts.add(v);
     }
     return parts.join(' ');
+  }
+
+  /// Count total book copies using SQL COUNT(*).
+  Future<int> countBookCopies() async {
+    final countExp = db.bookCopies.id.count();
+    final query = db.selectOnly(db.bookCopies)..addColumns([countExp]);
+    final row = await query.getSingle();
+    return row.read(countExp) ?? 0;
+  }
+
+  /// Count total book titles using SQL COUNT(*).
+  Future<int> countBooks() async {
+    final countExp = db.books.id.count();
+    final query = db.selectOnly(db.books)..addColumns([countExp]);
+    final row = await query.getSingle();
+    return row.read(countExp) ?? 0;
   }
 }
 

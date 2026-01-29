@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../book/presentation/book_list_page.dart';
 import '../../loan/presentation/loan_list_page.dart';
 import '../../member/presentation/member_list_page.dart';
+import 'home_view_model.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final stateAsync = ref.watch(homeViewModelProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -36,29 +39,71 @@ class HomePage extends StatelessWidget {
                             color: scheme.onSurfaceVariant,
                           ),
                     ),
-                    const SizedBox(height: 24),
-
-                    // Stats cards row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.menu_book_rounded,
-                            label: 'Tổng sách',
-                            value: '0',
-                            color: scheme.primary,
+                    const SizedBox(height: 24),                    // Stats cards row
+                    stateAsync.when(
+                      loading: () => Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.menu_book_rounded,
+                              label: 'Tổng sách',
+                              value: '...',
+                              color: scheme.primary,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatCard(
-                            icon: Icons.people_rounded,
-                            label: 'Hội viên',
-                            value: '0',
-                            color: scheme.tertiary,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.people_rounded,
+                              label: 'Hội viên',
+                              value: '...',
+                              color: scheme.tertiary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      error: (e, _) => Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.menu_book_rounded,
+                              label: 'Tổng sách',
+                              value: '!',
+                              color: scheme.error,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.people_rounded,
+                              label: 'Hội viên',
+                              value: '!',
+                              color: scheme.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                      data: (state) => Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.menu_book_rounded,
+                              label: 'Tổng sách',
+                              value: state.bookCopyCount.toString(),
+                              color: scheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StatCard(
+                              icon: Icons.people_rounded,
+                              label: 'Hội viên',
+                              value: state.memberCount.toString(),
+                              color: scheme.tertiary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 32),
 
@@ -121,15 +166,15 @@ class HomePage extends StatelessWidget {
                         ),
                       );
                     },
-                  ),
-                  _MenuCard(
+                  ),                  _MenuCard(
                     icon: Icons.input_rounded,
                     title: 'Trả\nSách',
                     color: Colors.deepPurple,
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Chức năng đang phát triển...')),
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const LoanListPage(),
+                        ),
                       );
                     },
                   ),
