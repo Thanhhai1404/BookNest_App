@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../reservation/data/repositories/reservation_repository.dart';
 import '../data/repositories/loan_repository.dart';
 import 'borrow_book_page.dart';
 import 'loan_view_model.dart';
@@ -371,7 +372,6 @@ class _LoanCard extends ConsumerWidget {
       }
     }
   }
-
   Future<void> _confirmReturn(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -396,8 +396,122 @@ class _LoanCard extends ConsumerWidget {
 
     if (confirmed == true && context.mounted) {
       try {
-        await ref.read(loanViewModelProvider.notifier).returnBook(item.loan.id);
-        if (context.mounted) {
+        // Return the book and get the bookId
+        final bookId = await ref
+            .read(loanViewModelProvider.notifier)
+            .returnBook(item.loan.id);
+
+        // Check if there's an active reservation for this book
+        final reservationRepo = ref.read(reservationRepositoryProvider);
+        final reservation =
+            await reservationRepo.getActiveReservationForBook(bookId);
+
+        if (reservation != null && context.mounted) {
+          // Show important reservation alert
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              icon: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.notification_important,
+                  size: 48,
+                  color: Colors.orange.shade700,
+                ),
+              ),
+              title: const Text(
+                '🔔 Sách được đặt trước!',
+                textAlign: TextAlign.center,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.person,
+                                color: Colors.orange.shade700, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                reservation.memberName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.badge,
+                                color: Colors.orange.shade700, size: 20),
+                            const SizedBox(width: 8),
+                            Text('Mã: ${reservation.memberId}'),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Vui lòng giữ sách "${item.bookTitle}" tại quầy và liên hệ hội viên!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+              actions: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () async {
+                      // Mark reservation as fulfilled
+                      await reservationRepo
+                          .fulfillReservation(reservation.reservation.id);
+                      if (ctx.mounted) {
+                        Navigator.of(ctx).pop();
+                      }
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Đã hiểu - Giữ sách tại quầy'),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Trả sách thành công! Đã thông báo đặt trước cho ${reservation.memberName}.',
+                ),
+                backgroundColor: Colors.orange.shade600,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        } else if (context.mounted) {
+          // Normal return, no reservation
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('Trả sách thành công!'),

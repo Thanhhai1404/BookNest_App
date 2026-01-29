@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/enums.dart';
+import '../../../data/db/app_database.dart';
+import '../../loan/presentation/loan_view_model.dart';
 import 'book_detail_view_model.dart';
 
 class BookDetailPage extends ConsumerWidget {
@@ -69,8 +71,7 @@ class BookDetailPage extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Text('Lỗi: $e'),
           ),
-        ),
-        data: (state) {
+        ),        data: (state) {
           return Column(
             children: [
               _HeaderCard(
@@ -78,7 +79,43 @@ class BookDetailPage extends ConsumerWidget {
                 author: state.authorName,
                 subtitle: '${state.publisherName} • ${state.categoryName}',
                 description: state.book.description ?? '',
+                availableCopies: state.availableCopiesCount,
+                totalCopies: state.copies.length,
+                hasReservation: state.hasActiveReservation,
               ),
+              // Reservation button when out of stock
+              if (state.availableCopiesCount == 0 && state.copies.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _ReservationButton(
+                    bookId: bookId,
+                    hasActiveReservation: state.hasActiveReservation,
+                    onReserve: (memberId) async {
+                      try {
+                        await ref
+                            .read(bookDetailViewModelProvider(bookId).notifier)
+                            .createReservation(memberId);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Đặt trước thành công!'),
+                              backgroundColor: Colors.green.shade600,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Lỗi: $e'),
+                              backgroundColor: Colors.red.shade600,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ),
               const Divider(height: 1),
               Expanded(
                 child: state.copies.isEmpty
@@ -164,16 +201,27 @@ class _HeaderCard extends StatelessWidget {
     required this.author,
     required this.subtitle,
     required this.description,
+    required this.availableCopies,
+    required this.totalCopies,
+    required this.hasReservation,
   });
 
   final String title;
   final String author;
   final String subtitle;
   final String description;
+  final int availableCopies;
+  final int totalCopies;
+  final bool hasReservation;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
+    // Availability status
+    final (statusLabel, statusColor) = availableCopies > 0
+        ? ('$availableCopies/$totalCopies sẵn sàng', Colors.green)
+        : ('Hết sách', Colors.red);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -192,12 +240,39 @@ class _HeaderCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
+                  // Title and availability badge
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.2,
+                                  ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: statusColor.withAlpha(25),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: statusColor.withAlpha(100)),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -216,6 +291,34 @@ class _HeaderCard extends StatelessWidget {
                         .bodyMedium
                         ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
+                  if (hasReservation) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withAlpha(25),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withAlpha(100)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.schedule,
+                              size: 16, color: Colors.orange.shade700),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Có người đặt trước',
+                            style: TextStyle(
+                              color: Colors.orange.shade700,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (description.trim().isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -229,6 +332,196 @@ class _HeaderCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Button for making reservations when book is out of stock.
+class _ReservationButton extends ConsumerWidget {
+  const _ReservationButton({
+    required this.bookId,
+    required this.hasActiveReservation,
+    required this.onReserve,
+  });
+
+  final String bookId;
+  final bool hasActiveReservation;
+  final Future<void> Function(String memberId) onReserve;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () => _showReservationDialog(context, ref),
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.orange,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        icon: const Icon(Icons.bookmark_add),
+        label: const Text('Đặt trước sách này'),
+      ),
+    );
+  }
+
+  Future<void> _showReservationDialog(
+      BuildContext context, WidgetRef ref) async {
+    final membersAsync = ref.read(allMembersProvider);
+
+    final members = membersAsync.maybeWhen(
+      data: (list) => list,
+      orElse: () => <Member>[],
+    );
+
+    if (members.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không có hội viên nào trong hệ thống.')),
+      );
+      return;
+    }
+
+    final selectedMemberId = await showDialog<String>(
+      context: context,
+      builder: (ctx) => _MemberSelectionDialog(members: members),
+    );
+
+    if (selectedMemberId != null && context.mounted) {
+      await onReserve(selectedMemberId);
+    }
+  }
+}
+
+/// Dialog to select a member for reservation.
+class _MemberSelectionDialog extends StatefulWidget {
+  const _MemberSelectionDialog({required this.members});
+
+  final List<Member> members;
+
+  @override
+  State<_MemberSelectionDialog> createState() => _MemberSelectionDialogState();
+}
+
+class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
+  String? _selectedMemberId;
+  String _searchQuery = '';
+
+  String _formatMemberName(Member m) {
+    final parts = <String>[];
+    for (final p in [m.lastName, m.middleName, m.firstName]) {
+      final v = (p ?? '').trim();
+      if (v.isNotEmpty) parts.add(v);
+    }
+    return parts.isEmpty ? m.id : parts.join(' ');
+  }
+
+  List<Member> get _filteredMembers {
+    if (_searchQuery.isEmpty) return widget.members;
+    final query = _searchQuery.toLowerCase();
+    return widget.members.where((m) {
+      final name = _formatMemberName(m).toLowerCase();
+      final phone = (m.phone ?? '').toLowerCase();
+      return name.contains(query) || phone.contains(query) || m.id.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.person_search, color: Colors.orange.shade700),
+          const SizedBox(width: 8),
+          const Text('Chọn hội viên'),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Search field
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Tìm theo tên, SĐT hoặc mã...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+            const SizedBox(height: 16),
+            // Member list
+            Flexible(
+              child: _filteredMembers.isEmpty
+                  ? const Center(child: Text('Không tìm thấy hội viên.'))
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _filteredMembers.length,
+                      itemBuilder: (context, index) {
+                        final member = _filteredMembers[index];
+                        final isSelected = _selectedMemberId == member.id;
+                        return ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          selected: isSelected,
+                          selectedTileColor: Colors.orange.withAlpha(30),
+                          leading: CircleAvatar(
+                            backgroundColor: isSelected
+                                ? Colors.orange
+                                : Theme.of(context).colorScheme.primaryContainer,
+                            child: Text(
+                              _formatMemberName(member)[0].toUpperCase(),
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            _formatMemberName(member),
+                            style: TextStyle(
+                              fontWeight:
+                                  isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${member.id} • ${member.phone ?? 'N/A'}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle, color: Colors.orange)
+                              : null,
+                          onTap: () =>
+                              setState(() => _selectedMemberId = member.id),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          onPressed: _selectedMemberId == null
+              ? null
+              : () => Navigator.pop(context, _selectedMemberId),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+          child: const Text('Đặt trước'),
+        ),
+      ],
     );
   }
 }

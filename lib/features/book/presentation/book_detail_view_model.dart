@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/enums.dart';
 import '../../../data/db/app_database.dart';
+import '../../reservation/data/repositories/reservation_repository.dart';
 import '../data/repositories/book_repository.dart';
 
 /// View model state for Book Detail + Copy management.
@@ -13,6 +14,8 @@ class BookDetailState {
     required this.authorName,
     required this.categoryName,
     required this.publisherName,
+    required this.availableCopiesCount,
+    required this.hasActiveReservation,
   });
 
   final Book book;
@@ -22,12 +25,17 @@ class BookDetailState {
   final String authorName;
   final String categoryName;
   final String publisherName;
+
+  /// Number of available (not borrowed) copies.
+  final int availableCopiesCount;
+
+  /// Whether someone has already reserved this book.
+  final bool hasActiveReservation;
 }
 
 class BookDetailViewModel
     extends AutoDisposeFamilyAsyncNotifier<BookDetailState, String> {
   String? _bookId;
-
   @override
   Future<BookDetailState> build(String arg) async {
     _bookId = arg;
@@ -44,12 +52,23 @@ class BookDetailViewModel
           ..orderBy([(c) => drift.OrderingTerm(expression: c.id)]))
         .get();
 
+    // Count available copies
+    final availableCopiesCount =
+        copies.where((c) => c.status == BookStatus.available.code).length;
+
+    // Check for active reservations
+    final reservationRepo = ref.watch(reservationRepositoryProvider);
+    final reservationCount =
+        await reservationRepo.countActiveReservationsForBook(arg);
+
     return BookDetailState(
       book: dto.book,
       copies: copies,
       authorName: dto.authorName,
       categoryName: dto.categoryName,
       publisherName: dto.publisherName,
+      availableCopiesCount: availableCopiesCount,
+      hasActiveReservation: reservationCount > 0,
     );
   }
 
@@ -94,7 +113,6 @@ class BookDetailViewModel
     ref.invalidateSelf();
     await future;
   }
-
   Future<void> deleteBook() async {
     final bookId = _bookId;
     if (bookId == null) {
@@ -103,6 +121,24 @@ class BookDetailViewModel
 
     final repo = ref.read(bookRepositoryProvider);
     await repo.deleteBook(bookId);
+  }
+
+  /// Create a reservation for this book.
+  Future<void> createReservation(String memberId) async {
+    final bookId = _bookId;
+    if (bookId == null) {
+      throw StateError('BookDetailViewModel chưa được khởi tạo bookId.');
+    }
+
+    final reservationRepo = ref.read(reservationRepositoryProvider);
+    await reservationRepo.createReservation(
+      bookId: bookId,
+      memberId: memberId,
+    );
+
+    // Refresh screen.
+    ref.invalidateSelf();
+    await future;
   }
 
   String _generateNextBarcode(String bookId, List<BookCopy> existing) {

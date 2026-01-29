@@ -11,12 +11,14 @@ class LoanWithDetails {
     required this.memberName,
     required this.bookTitle,
     required this.copyId,
+    required this.bookId,
   });
 
   final Loan loan;
   final String memberName;
   final String bookTitle;
   final String copyId;
+  final String bookId;
 }
 
 class LoanRepository {
@@ -77,9 +79,7 @@ class LoanRepository {
         l.status.isIn([LoanStatus.active.code, LoanStatus.overdue.code]));
     query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);
 
-    final rows = await query.get();
-
-    return rows.map((row) {
+    final rows = await query.get();    return rows.map((row) {
       final loan = row.readTable(l);
       final member = row.readTable(m);
       final book = row.readTable(b);
@@ -93,6 +93,7 @@ class LoanRepository {
         memberName: memberName,
         bookTitle: bookTitle,
         copyId: copy.id,
+        bookId: book.id,
       );
     }).toList();
   }
@@ -128,33 +129,61 @@ class LoanRepository {
         memberName: memberName,
         bookTitle: bookTitle,
         copyId: copy.id,
+        bookId: book.id,
       );
     }).toList();
   }
 
-  /// Return a borrowed book: updates loan status and book copy status.
-  Future<void> returnBook(int loanId) async {
-    return db.transaction(() async {
-      // Get the loan to find the copyId.
-      final loan = await (db.select(db.loans)
-            ..where((l) => l.id.equals(loanId)))
-          .getSingleOrNull();
-      if (loan == null) {
-        throw StateError('Không tìm thấy phiếu mượn #$loanId');
-      }
+  /// Get the bookId for a loan (used to check reservations before return).
+  Future<String?> getBookIdForLoan(int loanId) async {
+    final loan = await (db.select(db.loans)
+          ..where((l) => l.id.equals(loanId)))
+        .getSingleOrNull();
+    if (loan == null) return null;
 
+    final copy = await (db.select(db.bookCopies)
+          ..where((c) => c.id.equals(loan.copyId)))
+        .getSingleOrNull();
+    return copy?.bookId;
+  }
+
+  /// Return a borrowed book: updates loan status and book copy status.
+  ///
+  /// Returns the bookId so caller can check for reservations.
+  Future<String> returnBook(int loanId) async {
+    // Get the loan to find the copyId first (outside transaction for bookId).
+    final loan = await (db.select(db.loans)
+          ..where((l) => l.id.equals(loanId)))
+        .getSingleOrNull();
+    if (loan == null) {
+      throw StateError('Không tìm thấy phiếu mượn #$loanId');
+    }
+
+    // Get the bookId from copy.
+    final copy = await (db.select(db.bookCopies)
+          ..where((c) => c.id.equals(loan.copyId)))
+        .getSingleOrNull();
+    if (copy == null) {
+      throw StateError('Không tìm thấy bản sao ${loan.copyId}');
+    }
+
+    await db.transaction(() async {
       // Step A: Update loan status to returned.
       await (db.update(db.loans)..where((l) => l.id.equals(loanId))).write(
         LoansCompanion(
           returnDate: drift.Value(DateTime.now()),
           status: drift.Value(LoanStatus.returned.code),
         ),
-      );      // Step B: Update BookCopy status back to available.
+      );
+
+      // Step B: Update BookCopy status back to available.
       await (db.update(db.bookCopies)..where((c) => c.id.equals(loan.copyId)))
           .write(BookCopiesCompanion(
         status: drift.Value(BookStatus.available.code),
       ));
     });
+
+    return copy.bookId;
   }
 
   /// Maximum number of renewals allowed per loan.

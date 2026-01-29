@@ -66,3 +66,20 @@ enum Role {
     return Role.staff;
   }
 }
+
+/// Reservation status for book reservations.
+enum ReservationStatus {
+  active(0),
+  fulfilled(1),
+  cancelled(2);
+
+  const ReservationStatus(this.code);
+  final int code;
+
+  static ReservationStatus fromCode(int code) {
+    return ReservationStatus.values.firstWhere(
+      (e) => e.code == code,
+      orElse: () => ReservationStatus.active,
+    );
+  }
+}
