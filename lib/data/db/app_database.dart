@@ -55,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -73,6 +73,14 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'UPDATE members SET points = 0 WHERE points IS NULL',
+          );
+        }
+
+        // Migration from v2 to v3:
+        // - Add renewal_count column to loans table (default 0)
+        if (from < 3) {
+          await customStatement(
+            'ALTER TABLE loans ADD COLUMN renewal_count INTEGER NOT NULL DEFAULT 0',
           );
         }
       },

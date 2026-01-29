@@ -149,14 +149,71 @@ class LoanRepository {
           returnDate: drift.Value(DateTime.now()),
           status: drift.Value(LoanStatus.returned.code),
         ),
-      );
-
-      // Step B: Update BookCopy status back to available.
+      );      // Step B: Update BookCopy status back to available.
       await (db.update(db.bookCopies)..where((c) => c.id.equals(loan.copyId)))
           .write(BookCopiesCompanion(
         status: drift.Value(BookStatus.available.code),
       ));
     });
+  }
+
+  /// Maximum number of renewals allowed per loan.
+  static const int maxRenewals = 2;
+
+  /// Renewal period in days.
+  static const int renewalDays = 7;
+
+  /// Renew a loan: extends the due date by [renewalDays] days.
+  ///
+  /// Returns the new due date.
+  /// Throws if:
+  /// - Loan not found
+  /// - Loan already returned
+  /// - Max renewals reached
+  Future<DateTime> renewBook(int loanId) async {
+    // Get the loan.
+    final loan = await (db.select(db.loans)
+          ..where((l) => l.id.equals(loanId)))
+        .getSingleOrNull();
+
+    if (loan == null) {
+      throw StateError('Không tìm thấy phiếu mượn #$loanId');
+    }
+
+    // Check if loan is already returned.
+    if (loan.returnDate != null) {
+      throw StateError('Phiếu mượn #$loanId đã được trả sách');
+    }
+
+    // Check if max renewals reached.
+    if (loan.renewalCount >= maxRenewals) {
+      throw StateError(
+        'Đã đạt giới hạn gia hạn ($maxRenewals lần). Không thể gia hạn thêm.',
+      );
+    }
+
+    // Calculate new due date: extend from current due date.
+    final newDueDate = loan.dueDate.add(Duration(days: renewalDays));
+    final newRenewalCount = loan.renewalCount + 1;
+
+    // Update the loan.
+    await (db.update(db.loans)..where((l) => l.id.equals(loanId))).write(
+      LoansCompanion(
+        dueDate: drift.Value(newDueDate),
+        renewalCount: drift.Value(newRenewalCount),
+        // If loan was overdue, reset status to active if new due date is in the future.
+        status: newDueDate.isAfter(DateTime.now())
+            ? drift.Value(LoanStatus.active.code)
+            : const drift.Value.absent(),
+      ),
+    );
+
+    return newDueDate;
+  }
+
+  /// Check if a loan can be renewed.
+  bool canRenew(Loan loan) {
+    return loan.returnDate == null && loan.renewalCount < maxRenewals;
   }
 
   String _formatMemberName(Member member) {

@@ -32,4 +32,7 @@ class Loans extends Table {
 
   /// Loan status: 0 = Active, 1 = Overdue, 2 = Returned.
   IntColumn get status => integer().withDefault(const Constant(0))();
+
+  /// Number of times this loan has been renewed (max usually 1-2 times).
+  IntColumn get renewalCount => integer().withDefault(const Constant(0))();
 }

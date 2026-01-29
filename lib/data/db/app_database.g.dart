@@ -3608,9 +3608,25 @@ class $LoansTable extends Loans with TableInfo<$LoansTable, Loan> {
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _renewalCountMeta =
+      const VerificationMeta('renewalCount');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, memberId, copyId, borrowDate, dueDate, returnDate, status];
+  late final GeneratedColumn<int> renewalCount = GeneratedColumn<int>(
+      'renewal_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        memberId,
+        copyId,
+        borrowDate,
+        dueDate,
+        returnDate,
+        status,
+        renewalCount
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3660,6 +3676,12 @@ class $LoansTable extends Loans with TableInfo<$LoansTable, Loan> {
       context.handle(_statusMeta,
           status.isAcceptableOrUnknown(data['status']!, _statusMeta));
     }
+    if (data.containsKey('renewal_count')) {
+      context.handle(
+          _renewalCountMeta,
+          renewalCount.isAcceptableOrUnknown(
+              data['renewal_count']!, _renewalCountMeta));
+    }
     return context;
   }
 
@@ -3683,6 +3705,8 @@ class $LoansTable extends Loans with TableInfo<$LoansTable, Loan> {
           .read(DriftSqlType.dateTime, data['${effectivePrefix}return_date']),
       status: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}status'])!,
+      renewalCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}renewal_count'])!,
     );
   }
 
@@ -3713,6 +3737,9 @@ class Loan extends DataClass implements Insertable<Loan> {
 
   /// Loan status: 0 = Active, 1 = Overdue, 2 = Returned.
   final int status;
+
+  /// Number of times this loan has been renewed (max usually 1-2 times).
+  final int renewalCount;
   const Loan(
       {required this.id,
       required this.memberId,
@@ -3720,7 +3747,8 @@ class Loan extends DataClass implements Insertable<Loan> {
       required this.borrowDate,
       required this.dueDate,
       this.returnDate,
-      required this.status});
+      required this.status,
+      required this.renewalCount});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3733,6 +3761,7 @@ class Loan extends DataClass implements Insertable<Loan> {
       map['return_date'] = Variable<DateTime>(returnDate);
     }
     map['status'] = Variable<int>(status);
+    map['renewal_count'] = Variable<int>(renewalCount);
     return map;
   }
 
@@ -3747,6 +3776,7 @@ class Loan extends DataClass implements Insertable<Loan> {
           ? const Value.absent()
           : Value(returnDate),
       status: Value(status),
+      renewalCount: Value(renewalCount),
     );
   }
 
@@ -3761,6 +3791,7 @@ class Loan extends DataClass implements Insertable<Loan> {
       dueDate: serializer.fromJson<DateTime>(json['dueDate']),
       returnDate: serializer.fromJson<DateTime?>(json['returnDate']),
       status: serializer.fromJson<int>(json['status']),
+      renewalCount: serializer.fromJson<int>(json['renewalCount']),
     );
   }
   @override
@@ -3774,6 +3805,7 @@ class Loan extends DataClass implements Insertable<Loan> {
       'dueDate': serializer.toJson<DateTime>(dueDate),
       'returnDate': serializer.toJson<DateTime?>(returnDate),
       'status': serializer.toJson<int>(status),
+      'renewalCount': serializer.toJson<int>(renewalCount),
     };
   }
 
@@ -3784,7 +3816,8 @@ class Loan extends DataClass implements Insertable<Loan> {
           DateTime? borrowDate,
           DateTime? dueDate,
           Value<DateTime?> returnDate = const Value.absent(),
-          int? status}) =>
+          int? status,
+          int? renewalCount}) =>
       Loan(
         id: id ?? this.id,
         memberId: memberId ?? this.memberId,
@@ -3793,6 +3826,7 @@ class Loan extends DataClass implements Insertable<Loan> {
         dueDate: dueDate ?? this.dueDate,
         returnDate: returnDate.present ? returnDate.value : this.returnDate,
         status: status ?? this.status,
+        renewalCount: renewalCount ?? this.renewalCount,
       );
   Loan copyWithCompanion(LoansCompanion data) {
     return Loan(
@@ -3805,6 +3839,9 @@ class Loan extends DataClass implements Insertable<Loan> {
       returnDate:
           data.returnDate.present ? data.returnDate.value : this.returnDate,
       status: data.status.present ? data.status.value : this.status,
+      renewalCount: data.renewalCount.present
+          ? data.renewalCount.value
+          : this.renewalCount,
     );
   }
 
@@ -3817,14 +3854,15 @@ class Loan extends DataClass implements Insertable<Loan> {
           ..write('borrowDate: $borrowDate, ')
           ..write('dueDate: $dueDate, ')
           ..write('returnDate: $returnDate, ')
-          ..write('status: $status')
+          ..write('status: $status, ')
+          ..write('renewalCount: $renewalCount')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, memberId, copyId, borrowDate, dueDate, returnDate, status);
+  int get hashCode => Object.hash(id, memberId, copyId, borrowDate, dueDate,
+      returnDate, status, renewalCount);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3835,7 +3873,8 @@ class Loan extends DataClass implements Insertable<Loan> {
           other.borrowDate == this.borrowDate &&
           other.dueDate == this.dueDate &&
           other.returnDate == this.returnDate &&
-          other.status == this.status);
+          other.status == this.status &&
+          other.renewalCount == this.renewalCount);
 }
 
 class LoansCompanion extends UpdateCompanion<Loan> {
@@ -3846,6 +3885,7 @@ class LoansCompanion extends UpdateCompanion<Loan> {
   final Value<DateTime> dueDate;
   final Value<DateTime?> returnDate;
   final Value<int> status;
+  final Value<int> renewalCount;
   const LoansCompanion({
     this.id = const Value.absent(),
     this.memberId = const Value.absent(),
@@ -3854,6 +3894,7 @@ class LoansCompanion extends UpdateCompanion<Loan> {
     this.dueDate = const Value.absent(),
     this.returnDate = const Value.absent(),
     this.status = const Value.absent(),
+    this.renewalCount = const Value.absent(),
   });
   LoansCompanion.insert({
     this.id = const Value.absent(),
@@ -3863,6 +3904,7 @@ class LoansCompanion extends UpdateCompanion<Loan> {
     required DateTime dueDate,
     this.returnDate = const Value.absent(),
     this.status = const Value.absent(),
+    this.renewalCount = const Value.absent(),
   })  : memberId = Value(memberId),
         copyId = Value(copyId),
         borrowDate = Value(borrowDate),
@@ -3875,6 +3917,7 @@ class LoansCompanion extends UpdateCompanion<Loan> {
     Expression<DateTime>? dueDate,
     Expression<DateTime>? returnDate,
     Expression<int>? status,
+    Expression<int>? renewalCount,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3884,6 +3927,7 @@ class LoansCompanion extends UpdateCompanion<Loan> {
       if (dueDate != null) 'due_date': dueDate,
       if (returnDate != null) 'return_date': returnDate,
       if (status != null) 'status': status,
+      if (renewalCount != null) 'renewal_count': renewalCount,
     });
   }
 
@@ -3894,7 +3938,8 @@ class LoansCompanion extends UpdateCompanion<Loan> {
       Value<DateTime>? borrowDate,
       Value<DateTime>? dueDate,
       Value<DateTime?>? returnDate,
-      Value<int>? status}) {
+      Value<int>? status,
+      Value<int>? renewalCount}) {
     return LoansCompanion(
       id: id ?? this.id,
       memberId: memberId ?? this.memberId,
@@ -3903,6 +3948,7 @@ class LoansCompanion extends UpdateCompanion<Loan> {
       dueDate: dueDate ?? this.dueDate,
       returnDate: returnDate ?? this.returnDate,
       status: status ?? this.status,
+      renewalCount: renewalCount ?? this.renewalCount,
     );
   }
 
@@ -3930,6 +3976,9 @@ class LoansCompanion extends UpdateCompanion<Loan> {
     if (status.present) {
       map['status'] = Variable<int>(status.value);
     }
+    if (renewalCount.present) {
+      map['renewal_count'] = Variable<int>(renewalCount.value);
+    }
     return map;
   }
 
@@ -3942,7 +3991,8 @@ class LoansCompanion extends UpdateCompanion<Loan> {
           ..write('borrowDate: $borrowDate, ')
           ..write('dueDate: $dueDate, ')
           ..write('returnDate: $returnDate, ')
-          ..write('status: $status')
+          ..write('status: $status, ')
+          ..write('renewalCount: $renewalCount')
           ..write(')'))
         .toString();
   }
@@ -8533,6 +8583,7 @@ typedef $$LoansTableCreateCompanionBuilder = LoansCompanion Function({
   required DateTime dueDate,
   Value<DateTime?> returnDate,
   Value<int> status,
+  Value<int> renewalCount,
 });
 typedef $$LoansTableUpdateCompanionBuilder = LoansCompanion Function({
   Value<int> id,
@@ -8542,6 +8593,7 @@ typedef $$LoansTableUpdateCompanionBuilder = LoansCompanion Function({
   Value<DateTime> dueDate,
   Value<DateTime?> returnDate,
   Value<int> status,
+  Value<int> renewalCount,
 });
 
 final class $$LoansTableReferences
@@ -8599,6 +8651,9 @@ class $$LoansTableFilterComposer extends Composer<_$AppDatabase, $LoansTable> {
 
   ColumnFilters<int> get status => $composableBuilder(
       column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get renewalCount => $composableBuilder(
+      column: $table.renewalCount, builder: (column) => ColumnFilters(column));
 
   $$MembersTableFilterComposer get memberId {
     final $$MembersTableFilterComposer composer = $composerBuilder(
@@ -8665,6 +8720,10 @@ class $$LoansTableOrderingComposer
   ColumnOrderings<int> get status => $composableBuilder(
       column: $table.status, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get renewalCount => $composableBuilder(
+      column: $table.renewalCount,
+      builder: (column) => ColumnOrderings(column));
+
   $$MembersTableOrderingComposer get memberId {
     final $$MembersTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -8729,6 +8788,9 @@ class $$LoansTableAnnotationComposer
 
   GeneratedColumn<int> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get renewalCount => $composableBuilder(
+      column: $table.renewalCount, builder: (column) => column);
 
   $$MembersTableAnnotationComposer get memberId {
     final $$MembersTableAnnotationComposer composer = $composerBuilder(
@@ -8801,6 +8863,7 @@ class $$LoansTableTableManager extends RootTableManager<
             Value<DateTime> dueDate = const Value.absent(),
             Value<DateTime?> returnDate = const Value.absent(),
             Value<int> status = const Value.absent(),
+            Value<int> renewalCount = const Value.absent(),
           }) =>
               LoansCompanion(
             id: id,
@@ -8810,6 +8873,7 @@ class $$LoansTableTableManager extends RootTableManager<
             dueDate: dueDate,
             returnDate: returnDate,
             status: status,
+            renewalCount: renewalCount,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -8819,6 +8883,7 @@ class $$LoansTableTableManager extends RootTableManager<
             required DateTime dueDate,
             Value<DateTime?> returnDate = const Value.absent(),
             Value<int> status = const Value.absent(),
+            Value<int> renewalCount = const Value.absent(),
           }) =>
               LoansCompanion.insert(
             id: id,
@@ -8828,6 +8893,7 @@ class $$LoansTableTableManager extends RootTableManager<
             dueDate: dueDate,
             returnDate: returnDate,
             status: status,
+            renewalCount: renewalCount,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) =>

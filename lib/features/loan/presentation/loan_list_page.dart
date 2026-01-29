@@ -190,29 +190,186 @@ class _LoanCard extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Return book button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _confirmReturn(context, ref),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.green.shade700,
-                  side: BorderSide(color: Colors.green.shade300),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 16),            // Return book button
+            Row(
+              children: [
+                // Renew button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _canRenew(item)
+                        ? () => _confirmRenew(context, ref)
+                        : null,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blue.shade700,
+                      side: BorderSide(
+                        color: _canRenew(item)
+                            ? Colors.blue.shade300
+                            : Colors.grey.shade300,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.update),
+                    label: Text(
+                      'Gia hạn (${item.loan.renewalCount}/2)',
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   ),
                 ),
-                icon: const Icon(Icons.assignment_return),
-                label: const Text('Trả sách'),
-              ),
+                const SizedBox(width: 12),
+                // Return button
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _confirmReturn(context, ref),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green.shade700,
+                      side: BorderSide(color: Colors.green.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.assignment_return),
+                    label: const Text('Trả sách'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );  }
+
+  /// Check if this loan can be renewed (max 2 times).
+  bool _canRenew(LoanWithDetails item) {
+    return item.loan.renewalCount < 2;
+  }
+
+  Future<void> _confirmRenew(BuildContext context, WidgetRef ref) async {
+    final isOverdue = item.loan.dueDate.isBefore(DateTime.now());
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final newDueDate = item.loan.dueDate.add(const Duration(days: 7));
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.update, color: Colors.blue.shade700),
+            const SizedBox(width: 8),
+            const Text('Gia hạn sách'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isOverdue) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Lưu ý: Sách này đã quá hạn!',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            Text('Sách: ${item.bookTitle}'),
+            const SizedBox(height: 4),
+            Text('Mã bản: ${item.copyId}'),
+            const SizedBox(height: 4),
+            Text('Người mượn: ${item.memberName}'),
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text('Hạn trả hiện tại: '),
+                Text(
+                  dateFormat.format(item.loan.dueDate),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isOverdue ? Colors.red : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Text('Hạn trả mới: '),
+                Text(
+                  dateFormat.format(newDueDate),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                const Text(' (+7 ngày)'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Số lần gia hạn: ${item.loan.renewalCount}/2',
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Xác nhận gia hạn'),
+          ),
+        ],
+      ),
     );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        final resultDate =
+            await ref.read(loanViewModelProvider.notifier).renewBook(item.loan.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gia hạn thành công! Hạn trả mới: ${dateFormat.format(resultDate)}',
+              ),
+              backgroundColor: Colors.blue.shade600,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lỗi: $e'),
+              backgroundColor: Colors.red.shade600,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _confirmReturn(BuildContext context, WidgetRef ref) async {
