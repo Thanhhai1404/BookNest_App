@@ -46,7 +46,8 @@ class BookDetailPage extends ConsumerWidget {
               );
               if (ok != true) return;
 
-              final notifier = ref.read(bookDetailViewModelProvider(bookId).notifier);
+              final notifier =
+                  ref.read(bookDetailViewModelProvider(bookId).notifier);
               try {
                 await notifier.deleteBook();
                 if (!context.mounted) return;
@@ -99,7 +100,8 @@ class BookDetailPage extends ConsumerWidget {
                                   content: Text('Xóa bản sao ${c.id} này?'),
                                   actions: [
                                     TextButton(
-                                      onPressed: () => Navigator.pop(ctx, false),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
                                       child: const Text('Hủy'),
                                     ),
                                     FilledButton.tonal(
@@ -115,14 +117,16 @@ class BookDetailPage extends ConsumerWidget {
                               );
                               if (ok != true) return;
 
-                              final notifier =
-                                  ref.read(bookDetailViewModelProvider(bookId).notifier);
+                              final notifier = ref.read(
+                                  bookDetailViewModelProvider(bookId).notifier);
                               try {
                                 await notifier.deleteCopy(c.id);
                               } catch (e) {
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Xóa bản sao thất bại: $e')),
+                                  SnackBar(
+                                      content:
+                                          Text('Xóa bản sao thất bại: $e')),
                                 );
                               }
                             },
@@ -136,7 +140,8 @@ class BookDetailPage extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          final notifier = ref.read(bookDetailViewModelProvider(bookId).notifier);
+          final notifier =
+              ref.read(bookDetailViewModelProvider(bookId).notifier);
           try {
             await notifier.addBookCopy();
           } catch (e) {

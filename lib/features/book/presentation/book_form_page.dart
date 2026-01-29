@@ -149,9 +149,12 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
             List<Publisher> publishers
           )>(
         future: () async {
-          final cats = await ref.read(categoryRepositoryProvider).getAllCategories();
-          final authors = await ref.read(authorRepositoryProvider).getAllAuthors();
-          final pubs = await ref.read(publisherRepositoryProvider).getAllPublishers();
+          final cats =
+              await ref.read(categoryRepositoryProvider).getAllCategories();
+          final authors =
+              await ref.read(authorRepositoryProvider).getAllAuthors();
+          final pubs =
+              await ref.read(publisherRepositoryProvider).getAllPublishers();
           return (cats, authors, pubs);
         }(),
         builder: (context, snapshot) {
@@ -173,13 +176,15 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
           final publishers = data?.$3 ?? const <Publisher>[];
 
           // Ensure dropdown defaults are valid after load.
-          _categoryId = _categoryId != null && categories.any((c) => c.id == _categoryId)
-              ? _categoryId
-              : null;
+          _categoryId =
+              _categoryId != null && categories.any((c) => c.id == _categoryId)
+                  ? _categoryId
+                  : null;
           _authorId = _authorId != null && authors.any((a) => a.id == _authorId)
               ? _authorId
               : null;
-          _publisherId = _publisherId != null && publishers.any((p) => p.id == _publisherId)
+          _publisherId = _publisherId != null &&
+                  publishers.any((p) => p.id == _publisherId)
               ? _publisherId
               : null;
 
@@ -244,7 +249,9 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
                             ),
                           )
                           .toList(),
-                      onChanged: _saving ? null : (v) => setState(() => _categoryId = v),
+                      onChanged: _saving
+                          ? null
+                          : (v) => setState(() => _categoryId = v),
                       decoration: const InputDecoration(
                         labelText: 'Thể loại',
                         border: OutlineInputBorder(),
@@ -262,7 +269,8 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
                             ),
                           )
                           .toList(),
-                      onChanged: _saving ? null : (v) => setState(() => _authorId = v),
+                      onChanged:
+                          _saving ? null : (v) => setState(() => _authorId = v),
                       decoration: const InputDecoration(
                         labelText: 'Tác giả',
                         border: OutlineInputBorder(),
@@ -280,7 +288,9 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
                             ),
                           )
                           .toList(),
-                      onChanged: _saving ? null : (v) => setState(() => _publisherId = v),
+                      onChanged: _saving
+                          ? null
+                          : (v) => setState(() => _publisherId = v),
                       decoration: const InputDecoration(
                         labelText: 'Nhà xuất bản',
                         border: OutlineInputBorder(),
@@ -296,7 +306,8 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.save),
                         label: Text(_saving ? 'Đang lưu...' : 'Lưu'),

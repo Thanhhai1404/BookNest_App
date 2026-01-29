@@ -121,9 +121,8 @@ class BookRepository {
     final id = book.id.present ? book.id.value.trim() : '';
     final normalized = id.isEmpty ? await generateNextBookId() : id;
 
-    final toInsert = book.id.present
-        ? book
-        : book.copyWith(id: drift.Value(normalized));
+    final toInsert =
+        book.id.present ? book : book.copyWith(id: drift.Value(normalized));
 
     return db.into(db.books).insert(toInsert);
   }
@@ -139,7 +138,8 @@ class BookRepository {
 
   /// Cascade delete: remove all copies of a book, then delete the book.
   Future<int> deleteBook(String bookId) async {
-    await (db.delete(db.bookCopies)..where((c) => c.bookId.equals(bookId))).go();
+    await (db.delete(db.bookCopies)..where((c) => c.bookId.equals(bookId)))
+        .go();
     return (db.delete(db.books)..where((b) => b.id.equals(bookId))).go();
   }
 
