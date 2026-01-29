@@ -3,13 +3,27 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/barcode_scanner_view.dart';
 import '../../../data/db/app_database.dart';
 import 'member_detail_page.dart';
 import 'member_form_page.dart';
 import 'member_view_model.dart';
 
-class MemberListPage extends ConsumerWidget {
+class MemberListPage extends ConsumerStatefulWidget {
   const MemberListPage({super.key});
+
+  @override
+  ConsumerState<MemberListPage> createState() => _MemberListPageState();
+}
+
+class _MemberListPageState extends ConsumerState<MemberListPage> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   String _fullName(Member m) {
     final parts = [m.lastName, m.middleName, m.firstName]
@@ -19,10 +33,25 @@ class MemberListPage extends ConsumerWidget {
     return parts.isEmpty ? m.id : parts.join(' ');
   }
 
+  Future<void> _openScanner() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const BarcodeScannerView()),
+    );
+    if (code != null && code.isNotEmpty && mounted) {
+      _searchController.text = code;
+      ref.read(memberListControllerProvider.notifier).setQueryImmediate(code);
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final membersAsync = ref.watch(memberListStreamProvider);
     final state = ref.watch(memberListControllerProvider);
+
+    // Sync controller with state when cleared externally
+    if (state.query.isEmpty && _searchController.text.isNotEmpty) {
+      _searchController.clear();
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -33,7 +62,8 @@ class MemberListPage extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: SearchBar(
-              hintText: 'Tìm theo tên hoặc SĐT',
+              controller: _searchController,
+              hintText: 'Tìm theo tên, SĐT hoặc mã hội viên',
               leading: const Icon(Icons.search),
               padding: const WidgetStatePropertyAll(
                 EdgeInsets.symmetric(horizontal: 16),
@@ -42,14 +72,24 @@ class MemberListPage extends ConsumerWidget {
                   .read(memberListControllerProvider.notifier)
                   .setQuery(value),
               trailing: [
+                // Scanner button
+                IconButton(
+                  tooltip: 'Quét mã thẻ',
+                  onPressed: _openScanner,
+                  icon: const Icon(Icons.qr_code_scanner),
+                ),
+                // Clear button
                 if (state.query.trim().isNotEmpty)
                   IconButton(
                     tooltip: 'Xoá tìm kiếm',
-                    onPressed: () => ref
-                        .read(memberListControllerProvider.notifier)
-                        .clearQuery(),
+                    onPressed: () {
+                      _searchController.clear();
+                      ref
+                          .read(memberListControllerProvider.notifier)
+                          .clearQuery();
+                    },
                     icon: const Icon(Icons.clear),
-                  )
+                  ),
               ],
             ),
           ),

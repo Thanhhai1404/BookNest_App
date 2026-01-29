@@ -51,10 +51,15 @@ class MemberListController extends StateNotifier<MemberListState> {
       state = state.copyWith(debouncedQuery: value);
     });
   }
-
   void clearQuery() {
     _debounceTimer?.cancel();
     state = MemberListState.initial;
+  }
+
+  /// Set query and trigger search immediately (no debounce) - used for scanner results
+  void setQueryImmediate(String value) {
+    _debounceTimer?.cancel();
+    state = state.copyWith(query: value, debouncedQuery: value);
   }
 
   Stream<List<Member>> watchMembers() {

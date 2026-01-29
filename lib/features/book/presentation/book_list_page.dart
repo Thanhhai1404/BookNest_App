@@ -1,19 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/barcode_scanner_view.dart';
 import 'book_form_page.dart';
 import 'book_detail_page.dart';
 import '../data/repositories/book_repository.dart';
 import '../domain/models/book_with_details.dart';
 import 'book_list_view_model.dart';
 
-class BookListPage extends ConsumerWidget {
+class BookListPage extends ConsumerStatefulWidget {
   const BookListPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookListPage> createState() => _BookListPageState();
+}
+
+class _BookListPageState extends ConsumerState<BookListPage> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openScanner() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const BarcodeScannerView()),
+    );
+    if (code != null && code.isNotEmpty && mounted) {
+      _searchController.text = code;
+      ref.read(bookListViewModelProvider.notifier).setQueryImmediate(code);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(bookListViewModelProvider);
     final scheme = Theme.of(context).colorScheme;
+
+    // Sync controller with state when cleared externally
+    if (state.query.isEmpty && _searchController.text.isNotEmpty) {
+      _searchController.clear();
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -29,10 +58,11 @@ class BookListPage extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // Search bar
+          // Search bar with scanner
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: SearchBar(
+              controller: _searchController,
               hintText: 'Tìm theo tên sách, tác giả hoặc mã sách',
               leading: const Icon(Icons.search),
               padding: const WidgetStatePropertyAll(
@@ -41,14 +71,22 @@ class BookListPage extends ConsumerWidget {
               onChanged: (value) =>
                   ref.read(bookListViewModelProvider.notifier).setQuery(value),
               trailing: [
+                // Scanner button
+                IconButton(
+                  tooltip: 'Quét mã vạch',
+                  onPressed: _openScanner,
+                  icon: const Icon(Icons.qr_code_scanner),
+                ),
+                // Clear button
                 if (state.query.trim().isNotEmpty)
                   IconButton(
                     tooltip: 'Xoá tìm kiếm',
-                    onPressed: () => ref
-                        .read(bookListViewModelProvider.notifier)
-                        .clearQuery(),
+                    onPressed: () {
+                      _searchController.clear();
+                      ref.read(bookListViewModelProvider.notifier).clearQuery();
+                    },
                     icon: const Icon(Icons.clear),
-                  )
+                  ),
               ],
             ),
           ),
@@ -90,7 +128,7 @@ class BookListPage extends ConsumerWidget {
 
           // Book list
           Expanded(
-            child: _buildBookList(context, ref, state, scheme),
+            child: _buildBookList(context, state, scheme),
           ),
         ],
       ),
@@ -98,8 +136,7 @@ class BookListPage extends ConsumerWidget {
         onPressed: () async {
           final saved = await Navigator.of(context).push<bool>(
             MaterialPageRoute(builder: (_) => const BookFormPage()),
-          );
-          if (saved == true && context.mounted) {
+          );          if (saved == true && context.mounted) {
             ref.read(bookListViewModelProvider.notifier).refresh();
           }
         },
@@ -111,7 +148,6 @@ class BookListPage extends ConsumerWidget {
 
   Widget _buildBookList(
     BuildContext context,
-    WidgetRef ref,
     BookListState state,
     ColorScheme scheme,
   ) {

@@ -84,10 +84,16 @@ class BookListViewModel extends Notifier<BookListState> {
       _loadBooks();
     });
   }
-
   void clearQuery() {
     _debounceTimer?.cancel();
     state = state.copyWith(query: '', debouncedQuery: '');
+    _loadBooks();
+  }
+
+  /// Set query and search immediately (no debounce) - used for scanner results
+  void setQueryImmediate(String value) {
+    _debounceTimer?.cancel();
+    state = state.copyWith(query: value, debouncedQuery: value);
     _loadBooks();
   }
 
