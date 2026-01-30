@@ -36,9 +36,12 @@ dependencies:
   path_provider: ^2.1.5
   file_picker: ^8.1.7
   share_plus: ^10.1.4
-
   # Communication
   url_launcher: ^6.3.1
+
+  # PDF & Printing
+  pdf: ^3.11.1
+  printing: ^5.13.2
 
 dev_dependencies:
   flutter_test:
@@ -49,9 +52,11 @@ dev_dependencies:
   # Drift codegen
   drift_dev: ^2.26.0
   build_runner: ^2.4.15
-
   # Testing
   mocktail: ^1.0.4
 
 flutter:
   uses-material-design: true
+  # Khai báo assets
+  assets:
+    - assets/fonts/Roboto-Regular.ttf

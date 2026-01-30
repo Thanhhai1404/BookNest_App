@@ -1217,7 +1217,7 @@ class _LoanHistoryTile extends StatelessWidget {
       statusColor = Colors.green;
       statusIcon = Icons.check_circle;
     } else if (isOverdue) {
-      statusText = 'Quá hạn (${loan.overdueDays} ngày)';
+      statusText = 'Quá hạn';
       statusColor = Colors.red;
       statusIcon = Icons.warning;
     } else {
@@ -1226,75 +1226,106 @@ class _LoanHistoryTile extends StatelessWidget {
       statusIcon = Icons.schedule;
     }
 
-    return ListTile(
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: statusColor.withAlpha(25),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(statusIcon, color: statusColor, size: 20),
-      ),
-      title: Text(
-        loan.bookTitle,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Column(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Mã: ${loan.copyId} • Phiếu #${loan.loan.id}',
-            style: theme.textTheme.bodySmall,
+          // Leading icon
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor.withAlpha(25),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(statusIcon, color: statusColor, size: 20),
           ),
-          Row(
-            children: [
-              Text(
-                'Mượn: ${dateFormat.format(loan.loan.borrowDate)}',
-                style: theme.textTheme.bodySmall,
-              ),
-              if (isReturned) ...[
-                const Text(' → '),
+          const SizedBox(width: 12),
+          // Content - use Expanded to prevent overflow
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Book title
                 Text(
-                  'Trả: ${dateFormat.format(loan.loan.returnDate!)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.green,
+                  loan.bookTitle,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ] else ...[
-                const Text(' • '),
+                const SizedBox(height: 4),
+                // Copy ID and Loan ID
                 Text(
-                  'Hạn: ${dateFormat.format(loan.loan.dueDate)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isOverdue ? Colors.red : null,
-                    fontWeight: isOverdue ? FontWeight.bold : null,
-                  ),
+                  'Mã: ${loan.copyId} • Phiếu #${loan.loan.id}',
+                  style: theme.textTheme.bodySmall,
                 ),
+                const SizedBox(height: 2),
+                // Dates - wrap to prevent overflow
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 2,
+                  children: [
+                    Text(
+                      'Mượn: ${dateFormat.format(loan.loan.borrowDate)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    if (isReturned) ...[
+                      Text('→', style: theme.textTheme.bodySmall),
+                      Text(
+                        'Trả: ${dateFormat.format(loan.loan.returnDate!)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.green,
+                        ),
+                      ),
+                    ] else ...[
+                      Text('•', style: theme.textTheme.bodySmall),
+                      Text(
+                        'Hạn: ${dateFormat.format(loan.loan.dueDate)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isOverdue ? Colors.red : null,
+                          fontWeight: isOverdue ? FontWeight.bold : null,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                // Show overdue days if applicable
+                if (isOverdue && !isReturned) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Trễ ${loan.overdueDays} ngày',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Status badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withAlpha(25),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              statusText,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: statusColor.withAlpha(25),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          statusText,
-          style: TextStyle(
-            color: statusColor,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      isThreeLine: true,
     );
   }
 }

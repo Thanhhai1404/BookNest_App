@@ -13,6 +13,30 @@ final financeRepositoryProvider = Provider<FinanceRepository>((ref) {
 /// Fine rate: VND per overdue day.
 const int kFineRatePerDay = 5000;
 
+/// DTO for displaying fine info with member details.
+class FineWithDetails {
+  const FineWithDetails({
+    required this.fine,
+    required this.memberId,
+    required this.memberName,
+    required this.memberPhone,
+    required this.memberBalance,
+    this.bookTitle,
+    this.loanId,
+  });
+
+  final Fine fine;
+  final String memberId;
+  final String memberName;
+  final String? memberPhone;
+  final int memberBalance;
+  final String? bookTitle;
+  final int? loanId;
+
+  /// Check if member has enough balance to pay this fine.
+  bool get canPayFromWallet => memberBalance >= fine.amount;
+}
+
 /// Repository for managing transactions and fines.
 class FinanceRepository {
   FinanceRepository(this._db);
@@ -109,6 +133,76 @@ class FinanceRepository {
   Future<Fine?> getFineByLoanId(int loanId) async {
     return (_db.select(_db.fines)..where((f) => f.loanId.equals(loanId)))
         .getSingleOrNull();
+  }
+  /// Get all pending fines with member and book details.
+  /// 
+  /// Returns a list of [FineWithDetails] containing fine info,
+  /// member name, phone, balance, and book title.
+  Future<List<FineWithDetails>> getAllPendingFinesWithDetails() async {
+    return getFinesWithDetails(status: FineStatus.pending);
+  }
+
+  /// Get fines with member and book details, filtered by status.
+  /// 
+  /// [status] - Filter by fine status. If null, returns all fines.
+  /// Returns a list of [FineWithDetails] containing fine info,
+  /// member name, phone, balance, and book title.
+  Future<List<FineWithDetails>> getFinesWithDetails({FineStatus? status}) async {
+    final f = _db.fines;
+    final m = _db.members;
+    final l = _db.loans;
+    final bc = _db.bookCopies;
+    final b = _db.books;
+
+    // Join fines -> members, fines -> loans -> bookCopies -> books
+    final query = _db.select(f).join([
+      innerJoin(m, m.id.equalsExp(f.memberId)),
+      innerJoin(l, l.id.equalsExp(f.loanId)),
+      innerJoin(bc, bc.id.equalsExp(l.copyId)),
+      innerJoin(b, b.id.equalsExp(bc.bookId)),
+    ]);
+
+    // Filter by status if provided
+    if (status != null) {
+      query.where(f.status.equals(status.value));
+    }
+    query.orderBy([OrderingTerm.desc(f.createdAt)]);
+
+    final rows = await query.get();
+
+    return rows.map((row) {
+      final fine = row.readTable(f);
+      final member = row.readTable(m);
+      final book = row.readTable(b);
+      final loan = row.readTable(l);
+
+      // Format member name
+      String memberName = member.id;
+      if (member.lastName != null || member.firstName != null) {
+        memberName = '${member.lastName ?? ''} ${member.firstName ?? ''}'.trim();
+        if (memberName.isEmpty) memberName = member.id;
+      }
+
+      return FineWithDetails(
+        fine: fine,
+        memberId: member.id,
+        memberName: memberName,
+        memberPhone: member.phone,
+        memberBalance: member.walletBalance,
+        bookTitle: book.title ?? book.id,
+        loanId: loan.id,
+      );
+    }).toList();
+  }
+
+  /// Get all paid fines with member and book details.
+  Future<List<FineWithDetails>> getAllPaidFinesWithDetails() async {
+    return getFinesWithDetails(status: FineStatus.paid);
+  }
+
+  /// Get all fines (all statuses) with member and book details.
+  Future<List<FineWithDetails>> getAllFinesWithDetails() async {
+    return getFinesWithDetails(status: null);
   }
 
   /// Create a new fine record.

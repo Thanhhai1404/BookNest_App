@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../book/presentation/book_list_page.dart';
+import '../../loan/presentation/fine_list_page.dart';
 import '../../loan/presentation/loan_list_page.dart';
 import '../../member/presentation/member_list_page.dart';
 import '../../settings/presentation/backup_restore_page.dart';
@@ -182,8 +183,7 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),
-                  _MenuCard(
+                  ),                  _MenuCard(
                     icon: Icons.input_rounded,
                     title: 'Trả\nSách',
                     color: Colors.deepPurple,
@@ -191,6 +191,18 @@ class HomePage extends ConsumerWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const LoanListPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _MenuCard(
+                    icon: Icons.receipt_long_rounded,
+                    title: 'Thu\nPhạt',
+                    color: Colors.red.shade600,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const FineListPage(),
                         ),
                       );
                     },

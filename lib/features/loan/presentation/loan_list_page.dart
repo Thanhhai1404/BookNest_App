@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/services/pdf_service.dart';
 import '../../reservation/data/repositories/reservation_repository.dart';
 import '../data/repositories/loan_repository.dart';
 import 'borrow_book_page.dart';
@@ -345,12 +346,28 @@ class _LoanCard extends ConsumerWidget {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
+            ),            const SizedBox(height: 16),
 
             // Action buttons
             Row(
               children: [
+                // Print button (for active loans - not overdue tab)
+                if (!showCallButton) ...[
+                  IconButton.outlined(
+                    onPressed: () => _printReceipt(context, ref),
+                    style: IconButton.styleFrom(
+                      foregroundColor: Colors.purple.shade700,
+                      side: BorderSide(color: Colors.purple.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.print),
+                    tooltip: 'In phiếu mượn',
+                  ),
+                  const SizedBox(width: 8),
+                ],
+
                 // Phone call button (for overdue loans)
                 if (showCallButton && item.memberPhone != null) ...[
                   Expanded(
@@ -442,6 +459,56 @@ class _LoanCard extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi khi gọi điện: $e'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );      }
+    }
+  }
+
+  /// Print loan receipt using PdfService.
+  Future<void> _printReceipt(BuildContext context, WidgetRef ref) async {
+    try {
+      final pdfService = ref.read(pdfServiceProvider);
+      
+      // Show loading indicator
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Đang tạo phiếu mượn...'),
+              ],
+            ),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Generate PDF
+      final pdfData = await pdfService.generateLoanReceipt(item);
+
+      if (context.mounted) {
+        // Preview and print
+        await pdfService.previewReceipt(
+          context,
+          pdfData,
+          title: 'Phiếu mượn #${item.loan.id}',
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi tạo phiếu: $e'),
             backgroundColor: Colors.red.shade600,
           ),
         );
