@@ -277,7 +277,7 @@ class _PendingFineCard extends ConsumerWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      final result = await ref.read(fineViewModelProvider.notifier).payFine(fineDetails);
+      final result = await ref.read(fineViewModelProvider.notifier).payFineByCash(fineDetails);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message), backgroundColor: result.success ? Colors.green : Colors.red));
       }

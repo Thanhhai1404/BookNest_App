@@ -16,6 +16,7 @@ class ReturnBookResult {
     required this.fineAmount,
     this.fineId,
     this.newBalance,
+    this.finePaidFromWallet = false,
   });
 
   final String bookId;
@@ -24,6 +25,13 @@ class ReturnBookResult {
   final int fineAmount;
   final int? fineId;
   final int? newBalance;
+  
+  /// Whether the fine was auto-paid from wallet.
+  /// If false and isOverdue, fine is pending (needs cash payment).
+  final bool finePaidFromWallet;
+  
+  /// Whether fine is pending (not paid, needs cash collection).
+  bool get finePending => isOverdue && fineAmount > 0 && !finePaidFromWallet;
 }
 
 /// DTO for displaying loan info with related member & book details.
@@ -312,58 +320,65 @@ class LoanRepository {
         status: drift.Value(BookStatus.available.code),
       ));
 
-      // Step C: If overdue, create fine and deduct wallet
+      // Step C: If overdue, create fine record
       if (isOverdue && fineAmount > 0) {
-        // Create fine record
-        fineId = await db.into(db.fines).insert(
-              FinesCompanion.insert(
-                memberId: loan.memberId,
-                loanId: loanId,
-                amount: fineAmount,
-                reason: FineReason.overdue.value,
-                overdueDays: drift.Value(lateDays),
-              ),
-            );
-
-        // Get member's current balance
+        // Get member's current balance first
         final member = await (db.select(db.members)
               ..where((m) => m.id.equals(loan.memberId)))
             .getSingleOrNull();
 
         if (member != null) {
           final currentBalance = member.walletBalance;
-          // Allow negative balance (debt)
-          newBalance = currentBalance - fineAmount;
+          final canPayFromWallet = currentBalance >= fineAmount;
 
-          // Update wallet balance
-          await (db.update(db.members)
-                ..where((m) => m.id.equals(loan.memberId)))
-              .write(MembersCompanion(walletBalance: drift.Value(newBalance!)));
-
-          // Create transaction record for fine
-          await db.into(db.transactions).insert(
-                TransactionsCompanion.insert(
+          // Create fine record (status depends on wallet balance)
+          fineId = await db.into(db.fines).insert(
+                FinesCompanion.insert(
                   memberId: loan.memberId,
-                  type: TransactionType.finePayment.value,
-                  amount: -fineAmount, // Negative for debit
-                  balanceAfter: drift.Value(newBalance!),
-                  fineId: drift.Value(fineId),
-                  loanId: drift.Value(loanId),
-                  description: drift.Value(
-                    'Phạt trả sách trễ $lateDays ngày - Phiếu mượn #$loanId',
-                  ),
+                  loanId: loanId,
+                  amount: fineAmount,
+                  reason: FineReason.overdue.value,
+                  overdueDays: drift.Value(lateDays),
+                  // If wallet has enough, mark as Paid; otherwise Pending
+                  status: drift.Value(canPayFromWallet 
+                      ? FineStatus.paid.value 
+                      : FineStatus.pending.value),
+                  paidAt: drift.Value(canPayFromWallet ? now : null),
                 ),
               );
 
-          // Update fine status to Paid (auto-deducted)
-          await (db.update(db.fines)..where((f) => f.id.equals(fineId!)))
-              .write(FinesCompanion(
-            status: drift.Value(FineStatus.paid.value),
-            paidAt: drift.Value(now),
-          ));
+          if (canPayFromWallet) {
+            // Wallet has enough balance - auto deduct
+            newBalance = currentBalance - fineAmount;
+
+            // Update wallet balance
+            await (db.update(db.members)
+                  ..where((m) => m.id.equals(loan.memberId)))
+                .write(MembersCompanion(walletBalance: drift.Value(newBalance!)));
+
+            // Create transaction record for auto fine payment
+            await db.into(db.transactions).insert(
+                  TransactionsCompanion.insert(
+                    memberId: loan.memberId,
+                    type: TransactionType.finePayment.value,
+                    amount: -fineAmount, // Negative for debit
+                    balanceAfter: drift.Value(newBalance!),
+                    fineId: drift.Value(fineId),
+                    loanId: drift.Value(loanId),
+                    description: drift.Value(
+                      'Tự động trừ phạt trả sách trễ $lateDays ngày - Phiếu mượn #$loanId',
+                    ),
+                  ),
+                );
+          }
+          // If wallet doesn't have enough, fine stays Pending
+          // Admin will collect cash later via FineListPage
         }
       }
     });
+
+    // Check if fine was paid from wallet (newBalance != null means it was deducted)
+    final finePaidFromWallet = isOverdue && fineAmount > 0 && newBalance != null;
 
     return ReturnBookResult(
       bookId: copy.bookId,
@@ -372,6 +387,7 @@ class LoanRepository {
       fineAmount: fineAmount,
       fineId: fineId,
       newBalance: newBalance,
+      finePaidFromWallet: finePaidFromWallet,
     );
   }
 

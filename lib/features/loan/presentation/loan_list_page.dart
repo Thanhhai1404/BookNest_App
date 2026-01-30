@@ -925,54 +925,102 @@ class _LoanCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            if (result.newBalance != null)
+            // Case 1: Fine was paid from wallet
+            if (result.finePaidFromWallet && result.newBalance != null)
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: result.newBalance! < 0
-                      ? Colors.orange.shade50
-                      : Colors.green.shade50,
+                  color: Colors.green.shade50,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: result.newBalance! < 0
-                        ? Colors.orange.shade200
-                        : Colors.green.shade200,
-                  ),
+                  border: Border.all(color: Colors.green.shade200),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Column(
                   children: [
-                    Icon(
-                      Icons.account_balance_wallet,
-                      color: result.newBalance! < 0
-                          ? Colors.orange.shade700
-                          : Colors.green.shade700,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Đã tự động trừ từ ví',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Số dư ví: ${_currencyFormat.format(result.newBalance)} VND',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: result.newBalance! < 0
-                            ? Colors.orange.shade700
-                            : Colors.green.shade700,
-                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.account_balance_wallet, color: Colors.green.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Số dư còn lại: ${_currencyFormat.format(result.newBalance)} VND',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            if (result.newBalance != null && result.newBalance! < 0) ...[
-              const SizedBox(height: 8),
-              Text(
-                '⚠️ Ví đang nợ! Vui lòng yêu cầu hội viên nạp tiền.',
-                style: TextStyle(
-                  color: Colors.orange.shade700,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
+            // Case 2: Fine is pending (wallet not enough)
+            if (result.finePending)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
                 ),
-                textAlign: TextAlign.center,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'SỐ DƯ VÍ KHÔNG ĐỦ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Khoản phạt đã được ghi nhận.\nVui lòng thu tiền mặt từ hội viên.',
+                      style: TextStyle(
+                        color: Colors.orange.shade700,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.receipt_long, size: 18, color: Colors.orange.shade700),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Xem tại: Thu Phạt → Chưa thanh toán',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
             if (reservedForMember != null) ...[
               const SizedBox(height: 12),
               Container(

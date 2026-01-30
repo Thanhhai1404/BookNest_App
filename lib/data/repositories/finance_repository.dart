@@ -301,6 +301,69 @@ class FinanceRepository {
     });
   }
 
+  /// Pay a fine using cash (manual payment by admin).
+  /// 
+  /// This method:
+  /// 1. Updates fine status to Paid
+  /// 2. Creates a transaction record for audit trail
+  /// 3. Does NOT deduct from member's wallet (cash payment)
+  /// 
+  /// Returns true if successful.
+  Future<bool> payFineByCash({
+    required int fineId,
+  }) async {
+    return _db.transaction(() async {
+      // 1. Get the fine info
+      final fine = await getFineById(fineId);
+      if (fine == null || fine.status != FineStatus.pending.value) {
+        return false;
+      }
+
+      // 2. Get member's current balance (for transaction record only)
+      final member = await (_db.select(_db.members)
+            ..where((m) => m.id.equals(fine.memberId)))
+          .getSingleOrNull();
+      if (member == null) return false;
+
+      // 3. Update fine status to Paid
+      await (_db.update(_db.fines)..where((f) => f.id.equals(fineId))).write(
+        FinesCompanion(
+          status: Value(FineStatus.paid.value),
+          paidAt: Value(DateTime.now()),
+        ),
+      );
+
+      // 4. Create transaction record for audit trail
+      // Amount is negative (money going out from member's perspective)
+      // balanceAfter remains unchanged since we don't deduct from wallet
+      await createTransaction(
+        memberId: fine.memberId,
+        type: TransactionType.finePayment,
+        amount: -fine.amount, // Negative for debit/payment
+        balanceAfter: member.walletBalance, // Balance unchanged (cash payment)
+        fineId: fineId,
+        loanId: fine.loanId,
+        description: 'Thanh toán phạt (Tiền mặt) - ${_formatFineReason(fine.reason, fine.overdueDays)}',
+      );
+
+      return true;
+    });
+  }
+
+  /// Helper to format fine reason for description.
+  String _formatFineReason(String reason, int overdueDays) {
+    switch (reason.toLowerCase()) {
+      case 'overdue':
+        return 'Trả trễ $overdueDays ngày';
+      case 'damaged':
+        return 'Sách hư hỏng';
+      case 'lost':
+        return 'Mất sách';
+      default:
+        return reason;
+    }
+  }
+
   /// Waive a fine (forgive without payment).
   Future<bool> waiveFine(int fineId) async {
     final updated = await (_db.update(_db.fines)
