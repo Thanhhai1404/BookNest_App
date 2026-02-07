@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/presentation/login_view_model.dart';
 import '../../book/presentation/book_list_page.dart';
 import '../../loan/presentation/fine_list_page.dart';
 import '../../loan/presentation/loan_list_page.dart';
@@ -14,9 +15,7 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final stateAsync = ref.watch(homeViewModelProvider);
-
-    return Scaffold(
+    final stateAsync = ref.watch(homeViewModelProvider);    return Scaffold(
       appBar: AppBar(
         title: const Text('BookNest'),
         centerTitle: false,
@@ -29,6 +28,11 @@ class HomePage extends ConsumerWidget {
               );
             },
             icon: const Icon(Icons.settings_outlined),
+          ),
+          IconButton(
+            tooltip: 'Đăng xuất',
+            onPressed: () => _showLogoutDialog(context, ref),
+            icon: const Icon(Icons.logout),
           ),
         ],
       ),
@@ -231,7 +235,6 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -251,23 +254,31 @@ class _StatCard extends StatelessWidget {
               child: Icon(icon, color: color, size: 24),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: color,
-                      ),
-                ),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                    ),
+                  ),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -324,11 +335,34 @@ class _MenuCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       height: 1.3,
                     ),
-              ),
-            ],
+              ),            ],
           ),
         ),
       ),
     );
   }
+}
+
+/// Show logout confirmation dialog.
+void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Đăng xuất'),
+      content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Huỷ'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            ref.read(loginViewModelProvider.notifier).logout();
+          },
+          child: const Text('Đăng xuất'),
+        ),
+      ],
+    ),
+  );
 }

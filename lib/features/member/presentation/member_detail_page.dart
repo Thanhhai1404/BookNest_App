@@ -24,9 +24,8 @@ final memberDetailProvider =
 });
 
 /// Provider for member's transaction history
-final memberTransactionsProvider =
-    FutureProvider.family.autoDispose<List<Transaction>, String>(
-        (ref, memberId) {
+final memberTransactionsProvider = FutureProvider.family
+    .autoDispose<List<Transaction>, String>((ref, memberId) {
   return ref.watch(financeRepositoryProvider).getTransactionsByMember(memberId);
 });
 
@@ -88,7 +87,8 @@ class MemberDetailPage extends ConsumerWidget {
                 icon: const Icon(Icons.delete_outline),
               ),
             ],
-          ),          body: ListView(
+          ),
+          body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               // --- Member Info Card ---
@@ -160,7 +160,8 @@ class MemberDetailPage extends ConsumerWidget {
     final result = await showDialog<int>(
       context: context,
       builder: (ctx) => _TopUpDialog(member: member),
-    );    if (result != null && result > 0) {
+    );
+    if (result != null && result > 0) {
       try {
         await ref.read(memberRepositoryProvider).topUpWallet(member.id, result);
         // Refresh data
@@ -374,7 +375,8 @@ class _WalletPointsCard extends StatelessWidget {
                 onPressed: onTopUp,
                 icon: const Icon(Icons.add_card),
                 label: const Text('Nạp tiền vào ví'),
-              ),            ),
+              ),
+            ),
           ],
         ),
       ),
@@ -576,13 +578,13 @@ class _TransactionTile extends StatelessWidget {
 
     // Determine icon and color based on transaction type
     final txType = TransactionType.fromValue(transaction.type);
-    final isCredit =
-        txType == TransactionType.topUp || txType == TransactionType.refund;
+    final isCredit = txType == TransactionType.topUp ||
+        txType == TransactionType.refund ||
+        txType == TransactionType.reward;
 
     final IconData icon;
     final Color iconColor;
     final Color amountColor;
-
     switch (txType) {
       case TransactionType.topUp:
         icon = Icons.arrow_upward;
@@ -593,6 +595,11 @@ class _TransactionTile extends StatelessWidget {
         icon = Icons.replay;
         iconColor = Colors.blue;
         amountColor = Colors.blue;
+        break;
+      case TransactionType.reward:
+        icon = Icons.stars;
+        iconColor = Colors.amber;
+        amountColor = Colors.amber.shade700;
         break;
       case TransactionType.payment:
       case TransactionType.finePayment:
@@ -646,6 +653,8 @@ class _TransactionTile extends StatelessWidget {
         return 'Hoàn tiền';
       case TransactionType.finePayment:
         return 'Thanh toán phạt';
+      case TransactionType.reward:
+        return 'Điểm thưởng';
     }
   }
 }
@@ -1030,7 +1039,8 @@ class _LoanHistoryCard extends ConsumerWidget {
                   if (loans.length > 5) ...[
                     const Divider(height: 1),
                     TextButton(
-                      onPressed: () => _showAllLoans(context, loans, dateFormat),
+                      onPressed: () =>
+                          _showAllLoans(context, loans, dateFormat),
                       child: Text('Xem tất cả (${loans.length})'),
                     ),
                   ],

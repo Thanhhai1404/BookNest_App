@@ -56,7 +56,8 @@ class _LoanListContent extends ConsumerWidget {
           actions: [
             IconButton(
               tooltip: 'Tải lại',
-              onPressed: () => ref.read(loanViewModelProvider.notifier).refresh(),
+              onPressed: () =>
+                  ref.read(loanViewModelProvider.notifier).refresh(),
               icon: const Icon(Icons.refresh),
             ),
           ],
@@ -169,7 +170,9 @@ class _LoanListView extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              showCallButton ? Icons.check_circle_outline : Icons.inbox_outlined,
+              showCallButton
+                  ? Icons.check_circle_outline
+                  : Icons.inbox_outlined,
               size: 64,
               color: Colors.grey,
             ),
@@ -226,7 +229,8 @@ class _LoanCard extends ConsumerWidget {
             if (isOverdue && showCallButton) ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
                   borderRadius: BorderRadius.circular(8),
@@ -234,7 +238,8 @@ class _LoanCard extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber, color: Colors.red.shade700, size: 20),
+                    Icon(Icons.warning_amber,
+                        color: Colors.red.shade700, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -346,7 +351,8 @@ class _LoanCard extends ConsumerWidget {
                   ),
                 ),
               ],
-            ),            const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 16),
 
             // Action buttons
             Row(
@@ -372,7 +378,8 @@ class _LoanCard extends ConsumerWidget {
                 if (showCallButton && item.memberPhone != null) ...[
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _makePhoneCall(context, item.memberPhone!),
+                      onPressed: () =>
+                          _makePhoneCall(context, item.memberPhone!),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.orange.shade700,
                         side: BorderSide(color: Colors.orange.shade300),
@@ -461,7 +468,8 @@ class _LoanCard extends ConsumerWidget {
             content: Text('Lỗi khi gọi điện: $e'),
             backgroundColor: Colors.red.shade600,
           ),
-        );      }
+        );
+      }
     }
   }
 
@@ -469,7 +477,7 @@ class _LoanCard extends ConsumerWidget {
   Future<void> _printReceipt(BuildContext context, WidgetRef ref) async {
     try {
       final pdfService = ref.read(pdfServiceProvider);
-      
+
       // Show loading indicator
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -619,8 +627,9 @@ class _LoanCard extends ConsumerWidget {
 
     if (confirmed == true && context.mounted) {
       try {
-        final resultDate =
-            await ref.read(loanViewModelProvider.notifier).renewBook(item.loan.id);
+        final resultDate = await ref
+            .read(loanViewModelProvider.notifier)
+            .renewBook(item.loan.id);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -650,6 +659,8 @@ class _LoanCard extends ConsumerWidget {
     final reservationRepo = ref.read(reservationRepositoryProvider);
     final reservation =
         await reservationRepo.getActiveReservationForBook(item.bookId);
+
+    if (!context.mounted) return;
 
     if (reservation != null) {
       final confirmed = await showDialog<bool>(
@@ -954,7 +965,8 @@ class _LoanCard extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.account_balance_wallet, color: Colors.green.shade700),
+                        Icon(Icons.account_balance_wallet,
+                            color: Colors.green.shade700),
                         const SizedBox(width: 8),
                         Text(
                           'Số dư còn lại: ${_currencyFormat.format(result.newBalance)} VND',
@@ -982,7 +994,8 @@ class _LoanCard extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                        Icon(Icons.warning_amber,
+                            color: Colors.orange.shade700),
                         const SizedBox(width: 8),
                         Text(
                           'SỐ DƯ VÍ KHÔNG ĐỦ',
@@ -1006,7 +1019,8 @@ class _LoanCard extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.receipt_long, size: 18, color: Colors.orange.shade700),
+                        Icon(Icons.receipt_long,
+                            size: 18, color: Colors.orange.shade700),
                         const SizedBox(width: 6),
                         Text(
                           'Xem tại: Thu Phạt → Chưa thanh toán',

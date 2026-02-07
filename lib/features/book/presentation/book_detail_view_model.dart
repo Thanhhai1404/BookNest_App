@@ -74,7 +74,7 @@ class BookDetailViewModel
 
   /// Add a new copy with auto-generated barcode.
   ///
-  /// Barcode rule: <bookId>-NN (NN is 2 digits).
+  /// Barcode rule: `bookId-NN` (NN is 2 digits).
   /// Example: BK001 -> BK001-01, BK001-02...
   Future<void> addBookCopy() async {
     final bookId = _bookId;
@@ -113,6 +113,7 @@ class BookDetailViewModel
     ref.invalidateSelf();
     await future;
   }
+
   Future<void> deleteBook() async {
     final bookId = _bookId;
     if (bookId == null) {

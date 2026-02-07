@@ -7,6 +7,9 @@ import '../../../../data/db/app_database.dart';
 /// Fine rate: VND per overdue day.
 const int kFineRatePerDay = 2000;
 
+/// Points awarded per book returned on time.
+const int kPointsPerBook = 10;
+
 /// Result of returning a book, includes fine information if overdue.
 class ReturnBookResult {
   const ReturnBookResult({
@@ -17,6 +20,8 @@ class ReturnBookResult {
     this.fineId,
     this.newBalance,
     this.finePaidFromWallet = false,
+    this.pointsEarned = 0,
+    this.newTotalPoints,
   });
 
   final String bookId;
@@ -25,13 +30,19 @@ class ReturnBookResult {
   final int fineAmount;
   final int? fineId;
   final int? newBalance;
-  
+
   /// Whether the fine was auto-paid from wallet.
   /// If false and isOverdue, fine is pending (needs cash payment).
   final bool finePaidFromWallet;
-  
+
   /// Whether fine is pending (not paid, needs cash collection).
   bool get finePending => isOverdue && fineAmount > 0 && !finePaidFromWallet;
+
+  /// Loyalty points earned for this return (0 if overdue).
+  final int pointsEarned;
+
+  /// Total points after this return.
+  final int? newTotalPoints;
 }
 
 /// DTO for displaying loan info with related member & book details.
@@ -121,7 +132,9 @@ class LoanRepository {
     // Filter only active loans (status = 0 or 1, i.e., not returned).
     query.where(
         l.status.isIn([LoanStatus.active.code, LoanStatus.overdue.code]));
-    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);    final rows = await query.get();    return rows.map((row) {
+    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);
+    final rows = await query.get();
+    return rows.map((row) {
       final loan = row.readTable(l);
       final member = row.readTable(m);
       final book = row.readTable(b);
@@ -155,7 +168,8 @@ class LoanRepository {
       drift.innerJoin(b, b.id.equalsExp(bc.bookId)),
     ]);
 
-    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);    final rows = await query.get();
+    query.orderBy([drift.OrderingTerm.desc(l.borrowDate)]);
+    final rows = await query.get();
 
     return rows.map((row) {
       final loan = row.readTable(l);
@@ -177,10 +191,10 @@ class LoanRepository {
       );
     }).toList();
   }
+
   /// Get the bookId for a loan (used to check reservations before return).
   Future<String?> getBookIdForLoan(int loanId) async {
-    final loan = await (db.select(db.loans)
-          ..where((l) => l.id.equals(loanId)))
+    final loan = await (db.select(db.loans)..where((l) => l.id.equals(loanId)))
         .getSingleOrNull();
     if (loan == null) return null;
 
@@ -279,10 +293,10 @@ class LoanRepository {
   ///
   /// Returns a [ReturnBookResult] containing the bookId and any fine info.
   /// Automatically calculates and applies fine for overdue returns.
+  /// Awards loyalty points if returned on time.
   Future<ReturnBookResult> returnBook(int loanId) async {
     // Get the loan to find the copyId first (outside transaction for bookId).
-    final loan = await (db.select(db.loans)
-          ..where((l) => l.id.equals(loanId)))
+    final loan = await (db.select(db.loans)..where((l) => l.id.equals(loanId)))
         .getSingleOrNull();
     if (loan == null) {
       throw StateError('Không tìm thấy phiếu mượn #$loanId');
@@ -304,6 +318,8 @@ class LoanRepository {
 
     int? fineId;
     int? newBalance;
+    int pointsEarned = 0;
+    int? newTotalPoints;
 
     await db.transaction(() async {
       // Step A: Update loan status to returned.
@@ -320,14 +336,14 @@ class LoanRepository {
         status: drift.Value(BookStatus.available.code),
       ));
 
-      // Step C: If overdue, create fine record
-      if (isOverdue && fineAmount > 0) {
-        // Get member's current balance first
-        final member = await (db.select(db.members)
-              ..where((m) => m.id.equals(loan.memberId)))
-            .getSingleOrNull();
+      // Get member info
+      final member = await (db.select(db.members)
+            ..where((m) => m.id.equals(loan.memberId)))
+          .getSingleOrNull();
 
-        if (member != null) {
+      if (member != null) {
+        // Step C: If overdue, create fine record
+        if (isOverdue && fineAmount > 0) {
           final currentBalance = member.walletBalance;
           final canPayFromWallet = currentBalance >= fineAmount;
 
@@ -340,8 +356,8 @@ class LoanRepository {
                   reason: FineReason.overdue.value,
                   overdueDays: drift.Value(lateDays),
                   // If wallet has enough, mark as Paid; otherwise Pending
-                  status: drift.Value(canPayFromWallet 
-                      ? FineStatus.paid.value 
+                  status: drift.Value(canPayFromWallet
+                      ? FineStatus.paid.value
                       : FineStatus.pending.value),
                   paidAt: drift.Value(canPayFromWallet ? now : null),
                 ),
@@ -354,7 +370,8 @@ class LoanRepository {
             // Update wallet balance
             await (db.update(db.members)
                   ..where((m) => m.id.equals(loan.memberId)))
-                .write(MembersCompanion(walletBalance: drift.Value(newBalance!)));
+                .write(
+                    MembersCompanion(walletBalance: drift.Value(newBalance!)));
 
             // Create transaction record for auto fine payment
             await db.into(db.transactions).insert(
@@ -373,12 +390,37 @@ class LoanRepository {
           }
           // If wallet doesn't have enough, fine stays Pending
           // Admin will collect cash later via FineListPage
+        } else {
+          // Step D: Not overdue - award loyalty points
+          pointsEarned = kPointsPerBook;
+          newTotalPoints = member.points + pointsEarned;
+
+          // Update member points
+          await (db.update(db.members)
+                ..where((m) => m.id.equals(loan.memberId)))
+              .write(MembersCompanion(points: drift.Value(newTotalPoints!)));
+
+          // Create transaction record for points reward
+          await db.into(db.transactions).insert(
+                TransactionsCompanion.insert(
+                  memberId: loan.memberId,
+                  type: TransactionType.reward.value,
+                  amount: pointsEarned, // Positive for reward
+                  balanceAfter:
+                      drift.Value(member.walletBalance), // Wallet unchanged
+                  loanId: drift.Value(loanId),
+                  description: drift.Value(
+                    'Cộng điểm thưởng trả sách đúng hạn: +$pointsEarned điểm',
+                  ),
+                ),
+              );
         }
       }
     });
 
     // Check if fine was paid from wallet (newBalance != null means it was deducted)
-    final finePaidFromWallet = isOverdue && fineAmount > 0 && newBalance != null;
+    final finePaidFromWallet =
+        isOverdue && fineAmount > 0 && newBalance != null;
 
     return ReturnBookResult(
       bookId: copy.bookId,
@@ -388,6 +430,8 @@ class LoanRepository {
       fineId: fineId,
       newBalance: newBalance,
       finePaidFromWallet: finePaidFromWallet,
+      pointsEarned: pointsEarned,
+      newTotalPoints: newTotalPoints,
     );
   }
 
@@ -406,8 +450,7 @@ class LoanRepository {
   /// - Max renewals reached
   Future<DateTime> renewBook(int loanId) async {
     // Get the loan.
-    final loan = await (db.select(db.loans)
-          ..where((l) => l.id.equals(loanId)))
+    final loan = await (db.select(db.loans)..where((l) => l.id.equals(loanId)))
         .getSingleOrNull();
 
     if (loan == null) {

@@ -38,10 +38,13 @@ dependencies:
   share_plus: ^10.1.4
   # Communication
   url_launcher: ^6.3.1
-
   # PDF & Printing
   pdf: ^3.11.1
   printing: ^5.13.2
+  google_fonts: ^8.0.0
+
+  # Supabase (Cloud Backend)
+  supabase_flutter: ^2.8.4
 
 dev_dependencies:
   flutter_test:

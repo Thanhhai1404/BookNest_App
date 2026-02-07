@@ -86,10 +86,11 @@ enum ReservationStatus {
 
 /// Transaction type for wallet transactions (stored as text in DB).
 enum TransactionType {
-  topUp('TopUp'),           // Nạp tiền vào ví
-  payment('Payment'),        // Thanh toán (phí mượn, phí trễ, etc.)
-  refund('Refund'),          // Hoàn tiền
-  finePayment('FinePayment'); // Thanh toán phạt
+  topUp('TopUp'), // Nạp tiền vào ví
+  payment('Payment'), // Thanh toán (phí mượn, phí trễ, etc.)
+  refund('Refund'), // Hoàn tiền
+  finePayment('FinePayment'), // Thanh toán phạt
+  reward('Reward'); // Điểm thưởng
 
   const TransactionType(this.value);
   final String value;
@@ -104,9 +105,9 @@ enum TransactionType {
 
 /// Fine status for tracking fine payments (stored as text in DB).
 enum FineStatus {
-  pending('Pending'),       // Chưa thanh toán
-  paid('Paid'),             // Đã thanh toán
-  waived('Waived');         // Được miễn
+  pending('Pending'), // Chưa thanh toán
+  paid('Paid'), // Đã thanh toán
+  waived('Waived'); // Được miễn
 
   const FineStatus(this.value);
   final String value;
@@ -121,9 +122,9 @@ enum FineStatus {
 
 /// Fine reason for categorizing fines.
 enum FineReason {
-  overdue('Overdue'),       // Trả sách trễ
-  damaged('Damaged'),       // Sách bị hư hỏng
-  lost('Lost');             // Mất sách
+  overdue('Overdue'), // Trả sách trễ
+  damaged('Damaged'), // Sách bị hư hỏng
+  lost('Lost'); // Mất sách
 
   const FineReason(this.value);
   final String value;
