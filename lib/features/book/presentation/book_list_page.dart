@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/barcode_scanner_view.dart';
+import '../../books/data/repositories/supabase_book_repository.dart';
 import 'book_form_page.dart';
 import 'book_detail_page.dart';
-import '../data/repositories/book_repository.dart';
-import '../domain/models/book_with_details.dart';
 import 'book_list_view_model.dart';
 
 class BookListPage extends ConsumerStatefulWidget {
@@ -63,7 +62,7 @@ class _BookListPageState extends ConsumerState<BookListPage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: SearchBar(
               controller: _searchController,
-              hintText: 'Tìm theo tên sách, tác giả hoặc mã sách',
+              hintText: 'Tìm theo tên sách hoặc mã sách',
               leading: const Icon(Icons.search),
               padding: const WidgetStatePropertyAll(
                 EdgeInsets.symmetric(horizontal: 16),
@@ -156,6 +155,41 @@ class _BookListPageState extends ConsumerState<BookListPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    if (state.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: scheme.error),
+              const SizedBox(height: 16),
+              Text(
+                'Lỗi tải dữ liệu',
+                style: TextStyle(
+                  color: scheme.error,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                state.error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () =>
+                    ref.read(bookListViewModelProvider.notifier).refresh(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (state.books.isEmpty) {
       return Center(
         child: Column(
@@ -227,11 +261,10 @@ class _FilterChip extends StatelessWidget {
 class _BookCard extends StatelessWidget {
   const _BookCard({required this.item});
 
-  final BookWithDetails item;
+  final SupabaseBookTitle item;
 
   @override
   Widget build(BuildContext context) {
-    final book = item.book;
     final scheme = Theme.of(context).colorScheme;
 
     return Card(
@@ -240,7 +273,7 @@ class _BookCard extends StatelessWidget {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => BookDetailPage(bookId: book.id),
+              builder: (_) => BookDetailPage(bookId: item.id),
             ),
           );
         },
@@ -260,7 +293,7 @@ class _BookCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      book.title ?? book.id,
+                      item.title.isNotEmpty ? item.title : item.id,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -269,15 +302,16 @@ class _BookCard extends StatelessWidget {
                           ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      item.authorName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    if (item.publisherName != null)
+                      Text(
+                        item.publisherName!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     const SizedBox(height: 4),
                     Text(
-                      '${item.publisherName} • ${item.categoryName}',
+                      '${item.categoryName ?? 'Chưa phân loại'} • ${item.totalCopies} bản',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(

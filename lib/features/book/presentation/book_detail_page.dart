@@ -1,10 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/enums.dart';
 import '../../../data/db/app_database.dart';
 import '../../loan/presentation/loan_view_model.dart';
 import 'book_detail_view_model.dart';
+
+/// Status enum cho sách
+enum BookCopyStatus {
+  available(0, 'Sẵn sàng', Colors.green),
+  borrowed(1, 'Đang mượn', Colors.red),
+  reserved(2, 'Đã đặt trước', Colors.orange),
+  damaged(3, 'Hỏng/Mất', Colors.grey);
+
+  final int code;
+  final String label;
+  final Color color;
+
+  const BookCopyStatus(this.code, this.label, this.color);
+
+  static BookCopyStatus fromCode(int code) {
+    return BookCopyStatus.values.firstWhere(
+      (s) => s.code == code,
+      orElse: () => BookCopyStatus.available,
+    );
+  }
+}
 
 class BookDetailPage extends ConsumerWidget {
   const BookDetailPage({super.key, required this.bookId});
@@ -69,16 +89,31 @@ class BookDetailPage extends ConsumerWidget {
         error: (e, st) => Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Text('Lỗi: $e'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Lỗi: $e'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(bookDetailViewModelProvider(bookId)),
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
           ),
-        ),        data: (state) {
+        ),
+        data: (state) {
           return Column(
             children: [
               _HeaderCard(
-                title: state.book.title ?? state.book.id,
+                title: state.bookTitle.title.isNotEmpty 
+                    ? state.bookTitle.title 
+                    : state.bookTitle.id,
                 author: state.authorName,
                 subtitle: '${state.publisherName} • ${state.categoryName}',
-                description: state.book.description ?? '',
+                description: state.bookTitle.description ?? '',
                 availableCopies: state.availableCopiesCount,
                 totalCopies: state.copies.length,
                 hasReservation: state.hasActiveReservation,
@@ -127,14 +162,14 @@ class BookDetailPage extends ConsumerWidget {
                         itemBuilder: (context, index) {
                           final c = state.copies[index];
                           return _CopyTile(
-                            copyId: c.id,
+                            copyId: c.barcode,
                             status: c.status,
                             onDelete: () async {
                               final ok = await showDialog<bool>(
                                 context: context,
                                 builder: (ctx) => AlertDialog(
                                   title: const Text('Xóa bản sao?'),
-                                  content: Text('Xóa bản sao ${c.id} này?'),
+                                  content: Text('Xóa bản sao ${c.barcode} này?'),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
@@ -157,7 +192,7 @@ class BookDetailPage extends ConsumerWidget {
                               final notifier = ref.read(
                                   bookDetailViewModelProvider(bookId).notifier);
                               try {
-                                await notifier.deleteCopy(c.id);
+                                await notifier.deleteCopy(c.barcode);
                               } catch (e) {
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -530,19 +565,12 @@ class _CopyTile extends StatelessWidget {
   const _CopyTile({required this.copyId, required this.status, this.onDelete});
 
   final String copyId;
-  final int? status;
+  final int status;
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final s = BookStatus.fromCode(status ?? BookStatus.available.code);
-
-    final (label, color) = switch (s) {
-      BookStatus.available => ('Sẵn sàng', Colors.green),
-      BookStatus.borrowed => ('Đang mượn', Colors.red),
-      BookStatus.lost => ('Mất', Colors.grey),
-      BookStatus.damaged => ('Hỏng', Colors.orange),
-    };
+    final s = BookCopyStatus.fromCode(status);
 
     return ListTile(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -554,13 +582,13 @@ class _CopyTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: color.withAlpha(28),
+              color: s.color.withAlpha(28),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: color.withAlpha(120)),
+              border: Border.all(color: s.color.withAlpha(120)),
             ),
             child: Text(
-              label,
-              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              s.label,
+              style: TextStyle(color: s.color, fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(width: 8),

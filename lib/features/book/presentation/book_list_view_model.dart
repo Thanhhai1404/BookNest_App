@@ -2,8 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/repositories/book_repository.dart';
-import '../domain/models/book_with_details.dart';
+import '../../books/data/repositories/supabase_book_repository.dart';
+
+/// Filter options for book availability
+enum BookAvailabilityFilter {
+  all, // Tất cả
+  available, // Sẵn sàng (có ít nhất 1 bản sao Available)
+  outOfStock, // Hết hàng (không có bản sao Available nào)
+}
 
 /// State for book list with search and filter
 class BookListState {
@@ -13,20 +19,23 @@ class BookListState {
     required this.debouncedQuery,
     required this.filter,
     required this.isLoading,
+    this.error,
   });
 
-  final List<BookWithDetails> books;
+  final List<SupabaseBookTitle> books;
   final String query;
   final String debouncedQuery;
   final BookAvailabilityFilter filter;
   final bool isLoading;
+  final String? error;
 
   BookListState copyWith({
-    List<BookWithDetails>? books,
+    List<SupabaseBookTitle>? books,
     String? query,
     String? debouncedQuery,
     BookAvailabilityFilter? filter,
     bool? isLoading,
+    String? error,
   }) {
     return BookListState(
       books: books ?? this.books,
@@ -34,6 +43,7 @@ class BookListState {
       debouncedQuery: debouncedQuery ?? this.debouncedQuery,
       filter: filter ?? this.filter,
       isLoading: isLoading ?? this.isLoading,
+      error: error,
     );
   }
 
@@ -58,17 +68,38 @@ class BookListViewModel extends Notifier<BookListState> {
   }
 
   Future<void> _loadBooks() async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final repo = ref.read(bookRepositoryProvider);
-      final books = await repo.searchBooks(
-        query: state.debouncedQuery.isEmpty ? null : state.debouncedQuery,
-        filter: state.filter,
-      );
+      final repo = ref.read(supabaseBookRepositoryProvider);
+      List<SupabaseBookTitle> books;
+
+      // Tìm kiếm hoặc lấy tất cả
+      if (state.debouncedQuery.isNotEmpty) {
+        books = await repo.searchBookTitles(state.debouncedQuery);
+      } else {
+        books = await repo.getBookTitles();
+      }
+
+      // Áp dụng filter theo availability
+      if (state.filter != BookAvailabilityFilter.all) {
+        books = books.where((book) {
+          if (state.filter == BookAvailabilityFilter.available) {
+            return book.totalCopies > 0;
+          } else {
+            // outOfStock
+            return book.totalCopies == 0;
+          }
+        }).toList();
+      }
+
       state = state.copyWith(books: books, isLoading: false);
     } catch (e) {
-      state = state.copyWith(books: [], isLoading: false);
+      state = state.copyWith(
+        books: [],
+        isLoading: false,
+        error: e.toString(),
+      );
     }
   }
 

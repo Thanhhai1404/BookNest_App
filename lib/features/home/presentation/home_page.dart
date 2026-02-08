@@ -15,7 +15,8 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final stateAsync = ref.watch(homeViewModelProvider);    return Scaffold(
+    final stateAsync = ref.watch(homeViewModelProvider);
+    return Scaffold(
       appBar: AppBar(
         title: const Text('BookNest'),
         centerTitle: false,
@@ -187,7 +188,8 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),                  _MenuCard(
+                  ),
+                  _MenuCard(
                     icon: Icons.input_rounded,
                     title: 'Trả\nSách',
                     color: Colors.deepPurple,
@@ -264,10 +266,11 @@ class _StatCard extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       value,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                              ),
                     ),
                   ),
                   Text(
@@ -335,7 +338,8 @@ class _MenuCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       height: 1.3,
                     ),
-              ),            ],
+              ),
+            ],
           ),
         ),
       ),

@@ -139,4 +139,3 @@ class LoginViewModel extends Notifier<LoginState> {
 /// Provider for LoginViewModel.
 final loginViewModelProvider =
     NotifierProvider<LoginViewModel, LoginState>(LoginViewModel.new);
-

@@ -26,6 +26,7 @@ class SupabaseService {
 
   /// Lấy Supabase client instance.
   static SupabaseClient get client => Supabase.instance.client;
+
   /// Kiểm tra kết nối Supabase.
   ///
   /// In ra thông báo thành công hoặc lỗi.
@@ -34,10 +35,11 @@ class SupabaseService {
     try {
       // Thử lấy session hiện tại để kiểm tra kết nối
       final session = client.auth.currentSession;
-      
+
       // Nếu không có lỗi, kết nối thành công
       debugPrint('🎉 Kết nối Supabase thành công!');
-      debugPrint('   Session: ${session != null ? "Active" : "No session (anonymous)"}');
+      debugPrint(
+          '   Session: ${session != null ? "Active" : "No session (anonymous)"}');
       return true;
     } catch (e) {
       debugPrint('❌ Kết nối Supabase thất bại: $e');

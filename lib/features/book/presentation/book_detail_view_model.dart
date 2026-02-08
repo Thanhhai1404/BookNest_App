@@ -1,114 +1,113 @@
-import 'package:drift/drift.dart' as drift;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/enums.dart';
-import '../../../data/db/app_database.dart';
+import '../../books/data/repositories/supabase_author_repository.dart';
+import '../../books/data/repositories/supabase_book_repository.dart';
 import '../../reservation/data/repositories/reservation_repository.dart';
-import '../data/repositories/book_repository.dart';
 
 /// View model state for Book Detail + Copy management.
 class BookDetailState {
   const BookDetailState({
-    required this.book,
+    required this.bookTitle,
     required this.copies,
-    required this.authorName,
-    required this.categoryName,
-    required this.publisherName,
+    required this.authors,
     required this.availableCopiesCount,
     required this.hasActiveReservation,
   });
 
-  final Book book;
-  final List<BookCopy> copies;
-
-  // Display fields (because current repo returns DTO for list queries).
-  final String authorName;
-  final String categoryName;
-  final String publisherName;
+  final SupabaseBookTitle bookTitle;
+  final List<SupabaseBookCopy> copies;
+  final List<SupabaseAuthor> authors;
 
   /// Number of available (not borrowed) copies.
   final int availableCopiesCount;
 
   /// Whether someone has already reserved this book.
   final bool hasActiveReservation;
+
+  // Helper getters
+  String get authorName {
+    if (authors.isEmpty) return 'Chưa có tác giả';
+    return authors.map((a) => a.fullName).join(', ');
+  }
+
+  String get categoryName => bookTitle.categoryName ?? 'Chưa phân loại';
+  String get publisherName => bookTitle.publisherName ?? 'Chưa có NXB';
 }
 
 class BookDetailViewModel
     extends AutoDisposeFamilyAsyncNotifier<BookDetailState, String> {
   String? _bookId;
+
   @override
   Future<BookDetailState> build(String arg) async {
     _bookId = arg;
 
-    final repo = ref.watch(bookRepositoryProvider);
-    final dto = await repo.getBookById(arg);
-    if (dto == null) {
+    final bookRepo = ref.watch(supabaseBookRepositoryProvider);
+    final authorRepo = ref.watch(supabaseAuthorRepositoryProvider);
+
+    // Lấy thông tin đầu sách
+    final bookTitle = await bookRepo.getBookTitleById(arg);
+    if (bookTitle == null) {
       throw StateError('Không tìm thấy sách $arg');
     }
 
-    final db = ref.watch(databaseProvider);
-    final copies = await (db.select(db.bookCopies)
-          ..where((c) => c.bookId.equals(arg))
-          ..orderBy([(c) => drift.OrderingTerm(expression: c.id)]))
-        .get();
+    // Lấy danh sách bản sao
+    final copies = await bookRepo.getBookCopies(arg);
 
-    // Count available copies
-    final availableCopiesCount =
-        copies.where((c) => c.status == BookStatus.available.code).length;
+    // Lấy danh sách tác giả
+    final authors = await authorRepo.getAuthorsOfBook(arg);
 
-    // Check for active reservations
-    final reservationRepo = ref.watch(reservationRepositoryProvider);
-    final reservationCount =
-        await reservationRepo.countActiveReservationsForBook(arg);
+    // Đếm số bản sao sẵn sàng
+    final availableCopiesCount = copies.where((c) => c.isAvailable).length;
+
+    // Kiểm tra đặt trước (vẫn dùng local nếu cần, hoặc có thể cập nhật sau)
+    bool hasActiveReservation = false;
+    try {
+      final reservationRepo = ref.watch(reservationRepositoryProvider);
+      final reservationCount =
+          await reservationRepo.countActiveReservationsForBook(arg);
+      hasActiveReservation = reservationCount > 0;
+    } catch (_) {
+      // Nếu lỗi thì bỏ qua
+    }
 
     return BookDetailState(
-      book: dto.book,
+      bookTitle: bookTitle,
       copies: copies,
-      authorName: dto.authorName,
-      categoryName: dto.categoryName,
-      publisherName: dto.publisherName,
+      authors: authors,
       availableCopiesCount: availableCopiesCount,
-      hasActiveReservation: reservationCount > 0,
+      hasActiveReservation: hasActiveReservation,
     );
   }
 
   /// Add a new copy with auto-generated barcode.
-  ///
-  /// Barcode rule: `bookId-NN` (NN is 2 digits).
-  /// Example: BK001 -> BK001-01, BK001-02...
   Future<void> addBookCopy() async {
     final bookId = _bookId;
     if (bookId == null) {
       throw StateError('BookDetailViewModel chưa được khởi tạo bookId.');
     }
 
-    final db = ref.read(databaseProvider);
+    final bookRepo = ref.read(supabaseBookRepositoryProvider);
 
-    // Load current copies fresh to avoid stale state.
-    final existing = await (db.select(db.bookCopies)
-          ..where((c) => c.bookId.equals(bookId)))
-        .get();
-
+    // Lấy các bản sao hiện có để tạo barcode mới
+    final existing = await bookRepo.getBookCopies(bookId);
     final nextBarcode = _generateNextBarcode(bookId, existing);
 
-    await db.into(db.bookCopies).insert(
-          BookCopiesCompanion.insert(
-            id: nextBarcode,
-            bookId: bookId,
-            status: drift.Value(BookStatus.available.code),
-            location: const drift.Value.absent(),
-            condition: const drift.Value.absent(),
-          ),
-        );
+    await bookRepo.addBookCopy(
+      barcode: nextBarcode,
+      bookTitleId: bookId,
+      status: 0, // Sẵn sàng
+      condition: 'Tốt',
+    );
 
     // Refresh screen.
     ref.invalidateSelf();
     await future;
   }
 
-  Future<void> deleteCopy(String copyId) async {
-    final repo = ref.read(bookRepositoryProvider);
-    await repo.deleteBookCopy(copyId);
+  Future<void> deleteCopy(String copyBarcode) async {
+    final bookRepo = ref.read(supabaseBookRepositoryProvider);
+    await bookRepo.deleteBookCopy(copyBarcode);
 
     ref.invalidateSelf();
     await future;
@@ -120,8 +119,8 @@ class BookDetailViewModel
       throw StateError('BookDetailViewModel chưa được khởi tạo bookId.');
     }
 
-    final repo = ref.read(bookRepositoryProvider);
-    await repo.deleteBook(bookId);
+    final bookRepo = ref.read(supabaseBookRepositoryProvider);
+    await bookRepo.deleteBookTitle(bookId);
   }
 
   /// Create a reservation for this book.
@@ -142,18 +141,18 @@ class BookDetailViewModel
     await future;
   }
 
-  String _generateNextBarcode(String bookId, List<BookCopy> existing) {
+  String _generateNextBarcode(String bookId, List<SupabaseBookCopy> existing) {
     var maxNum = 0;
     for (final c in existing) {
-      final id = c.id.trim();
-      if (!id.startsWith('$bookId-')) continue;
-      final suffix = id.substring(bookId.length + 1);
+      final barcode = c.barcode.trim();
+      if (!barcode.startsWith('$bookId-')) continue;
+      final suffix = barcode.substring(bookId.length + 1);
       final n = int.tryParse(suffix);
       if (n == null) continue;
       if (n > maxNum) maxNum = n;
     }
     final next = maxNum + 1;
-    return '$bookId-${next.toString().padLeft(2, '0')}';
+    return '$bookId-${next.toString().padLeft(3, '0')}';
   }
 }
 

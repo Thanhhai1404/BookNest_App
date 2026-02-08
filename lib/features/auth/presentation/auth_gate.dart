@@ -55,7 +55,8 @@ class _AuthenticatedApp extends ConsumerWidget {
         }
       },
       loading: () => const _LoadingScreen(),
-      error: (error, stack) => const CustomerHomePage(), // Fallback to customer page on error
+      error: (error, stack) =>
+          const CustomerHomePage(), // Fallback to customer page on error
     );
   }
 }
