@@ -8,7 +8,7 @@ import 'package:path/path.dart' as path;
 
 /// Model cho Đầu sách (Book Title) từ Supabase
 /// Mapping với bảng: dau_sach
-/// Cột: MaDS (text PK), TenSach, NamXB, GiaBia, TongSoLuong, MoTa, MaTL (bigint), MaNXB (bigint)
+/// Cột: MaDS (text PK), TenSach, NamXB, GiaBia, TongSoLuong, MoTa, MaTL (bigint), MaNXB (bigint), AnhBia (text)
 class SupabaseBookTitle {
   final String id; // MaDS là text
   final String title;
@@ -20,6 +20,7 @@ class SupabaseBookTitle {
   final String? categoryName;
   final int? publisherId; // bigint trong DB
   final String? publisherName;
+  final String? imageUrl; // URL ảnh bìa
 
   SupabaseBookTitle({
     required this.id,
@@ -32,8 +33,8 @@ class SupabaseBookTitle {
     this.categoryName,
     this.publisherId,
     this.publisherName,
-  });
-  factory SupabaseBookTitle.fromJson(Map<String, dynamic> json) {
+    this.imageUrl,
+  });  factory SupabaseBookTitle.fromJson(Map<String, dynamic> json) {
     // Xử lý join với bảng the_loai (lowercase column names)
     String? categoryName;
     if (json['the_loai'] != null && json['the_loai'] is Map) {
@@ -62,12 +63,12 @@ class SupabaseBookTitle {
       totalCopies: parseIntOrNull(json['tongsoluong']) ?? 0,
       description: json['mota'] as String?,
       categoryId: parseIntOrNull(json['matl']),
-      categoryName: categoryName,
+      categoryName: categoryName ?? 'Chưa phân loại',
       publisherId: parseIntOrNull(json['manxb']),
-      publisherName: publisherName,
+      publisherName: publisherName ?? 'Chưa có NXB',
+      imageUrl: json['anhbia'] as String?,
     );
-  }
-  Map<String, dynamic> toInsertJson() {
+  }  Map<String, dynamic> toInsertJson() {
     return {
       'mads': id,
       'tensach': title,
@@ -77,6 +78,7 @@ class SupabaseBookTitle {
       'mota': description,
       'matl': categoryId,
       'manxb': publisherId,
+      'anhbia': imageUrl,
     };
   }
 }
@@ -242,13 +244,20 @@ class SupabaseBookRepository {
     }
   }
   // ==================== ĐẦU SÁCH (BOOK TITLES) ====================
+
+  /// Select statement với join để lấy thông tin thể loại và NXB
+  static const String _selectWithJoins = '''
+    *,
+    the_loai:matl(matl, tentl),
+    nha_xuat_ban:manxb(manxb, tennxb)
+  ''';
+
   /// Lấy danh sách tất cả đầu sách (kèm thông tin thể loại và NXB)
   Future<List<SupabaseBookTitle>> getBookTitles() async {
     try {
-      // Thử query đơn giản trước, không join
       final response = await _client
           .from(_bookTitleTable)
-          .select()
+          .select(_selectWithJoins)
           .order('tensach', ascending: true);
 
       return (response as List)
@@ -257,12 +266,14 @@ class SupabaseBookRepository {
     } catch (e) {
       throw Exception('Lỗi khi lấy danh sách đầu sách: $e');
     }
-  }  /// Lấy đầu sách theo ID (MaDS)
+  }
+
+  /// Lấy đầu sách theo ID (MaDS)
   Future<SupabaseBookTitle?> getBookTitleById(String id) async {
     try {
       final response = await _client
           .from(_bookTitleTable)
-          .select()
+          .select(_selectWithJoins)
           .eq('mads', id)
           .maybeSingle();
 
@@ -272,12 +283,13 @@ class SupabaseBookRepository {
       throw Exception('Lỗi khi lấy đầu sách: $e');
     }
   }
+
   /// Tìm kiếm đầu sách theo từ khóa
   Future<List<SupabaseBookTitle>> searchBookTitles(String keyword) async {
     try {
       final response = await _client
           .from(_bookTitleTable)
-          .select()
+          .select(_selectWithJoins)
           .or('tensach.ilike.%$keyword%,mads.ilike.%$keyword%')
           .order('tensach', ascending: true);
 
@@ -288,12 +300,13 @@ class SupabaseBookRepository {
       throw Exception('Lỗi khi tìm kiếm đầu sách: $e');
     }
   }
+
   /// Lấy đầu sách theo thể loại
   Future<List<SupabaseBookTitle>> getBookTitlesByCategory(int categoryId) async {
     try {
       final response = await _client
           .from(_bookTitleTable)
-          .select()
+          .select(_selectWithJoins)
           .eq('matl', categoryId)
           .order('tensach', ascending: true);
 
@@ -303,9 +316,9 @@ class SupabaseBookRepository {
     } catch (e) {
       throw Exception('Lỗi khi lấy sách theo thể loại: $e');
     }
-  }
-  /// Thêm đầu sách mới
+  }/// Thêm đầu sách mới
   /// [numberOfCopies] - Số lượng bản sao cần tạo
+  /// [coverImage] - File ảnh bìa (optional)
   Future<SupabaseBookTitle> addBookTitle({
     required String id, // MaDS - bạn cần tự tạo mã
     required String title,
@@ -315,8 +328,15 @@ class SupabaseBookRepository {
     int? publisherId,
     String? description,
     int numberOfCopies = 1,
+    File? coverImage,
   }) async {
     try {
+      // Upload ảnh bìa nếu có
+      String? imageUrl;
+      if (coverImage != null) {
+        imageUrl = await uploadCoverImage(coverImage);
+      }
+
       // Insert đầu sách
       final bookTitleResponse = await _client
           .from(_bookTitleTable)
@@ -329,6 +349,7 @@ class SupabaseBookRepository {
             'mota': description,
             'matl': categoryId,
             'manxb': publisherId,
+            'anhbia': imageUrl,
           })
           .select()
           .single();
@@ -353,8 +374,7 @@ class SupabaseBookRepository {
     } catch (e) {
       throw Exception('Lỗi khi thêm đầu sách: $e');
     }
-  }
-  /// Cập nhật đầu sách
+  }  /// Cập nhật đầu sách
   Future<SupabaseBookTitle> updateBookTitle({
     required String id,
     String? title,
@@ -364,6 +384,8 @@ class SupabaseBookRepository {
     int? publisherId,
     String? description,
     int? totalCopies,
+    File? coverImage,
+    String? imageUrl,
   }) async {
     try {
       // Build update data - chỉ update những field được truyền vào
@@ -375,6 +397,14 @@ class SupabaseBookRepository {
       if (publisherId != null) updateData['manxb'] = publisherId;
       if (description != null) updateData['mota'] = description;
       if (totalCopies != null) updateData['tongsoluong'] = totalCopies;
+
+      // Upload ảnh bìa mới nếu có
+      if (coverImage != null) {
+        final newImageUrl = await uploadCoverImage(coverImage);
+        updateData['anhbia'] = newImageUrl;
+      } else if (imageUrl != null) {
+        updateData['anhbia'] = imageUrl;
+      }
 
       if (updateData.isEmpty) {
         // Không có gì để update, trả về book hiện tại

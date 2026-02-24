@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../books/data/repositories/supabase_author_repository.dart';
 import '../../books/data/repositories/supabase_book_repository.dart';
@@ -30,6 +33,10 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
   int? _publisherId;
 
   bool _saving = false;
+
+  // Ảnh bìa
+  File? _selectedImageFile;
+  final ImagePicker _imagePicker = ImagePicker();
 
   bool get _isEdit => widget.existing != null;
 
@@ -63,9 +70,107 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
     _copiesCtrl.dispose();
     super.dispose();
   }
-
   String _formatAuthor(SupabaseAuthor a) {
     return a.fullName.isNotEmpty ? a.fullName : 'Tác giả #${a.id}';
+  }
+  /// Chọn ảnh từ thư viện
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImageFile = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi chọn ảnh: $e')),
+        );
+      }
+    }
+  }
+
+  /// Widget hiển thị ảnh bìa
+  Widget _buildCoverImageWidget() {
+    // Nếu đã chọn ảnh mới
+    if (_selectedImageFile != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(
+            _selectedImageFile!,
+            fit: BoxFit.cover,
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.black54,
+              child: IconButton(
+                icon: const Icon(Icons.close, size: 16, color: Colors.white),
+                onPressed: () => setState(() => _selectedImageFile = null),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Nếu đang sửa và có ảnh bìa cũ
+    if (_isEdit && widget.existing?.imageUrl != null && widget.existing!.imageUrl!.isNotEmpty) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            widget.existing!.imageUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildPlaceholder();
+            },
+          ),
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'Nhấn để thay đổi',
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Placeholder mặc định
+    return _buildPlaceholder();
+  }
+
+  Widget _buildPlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.camera_alt, size: 48, color: Colors.grey[500]),
+        const SizedBox(height: 8),
+        Text(
+          'Nhấn để chọn ảnh bìa',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+      ],
+    );
   }
 
   Future<void> _save() async {
@@ -102,9 +207,7 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
 
       final year = yearRaw.isEmpty ? null : int.tryParse(yearRaw);
       final price = priceRaw.isEmpty ? null : int.tryParse(priceRaw);
-      final copies = copiesRaw.isEmpty ? 1 : int.tryParse(copiesRaw) ?? 1;
-
-      if (_isEdit) {
+      final copies = copiesRaw.isEmpty ? 1 : int.tryParse(copiesRaw) ?? 1;      if (_isEdit) {
         await repo.updateBookTitle(
           id: widget.existing!.id,
           title: title,
@@ -113,6 +216,7 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
           categoryId: _categoryId,
           publisherId: _publisherId,
           description: desc.isNotEmpty ? desc : null,
+          coverImage: _selectedImageFile,
         );
       } else {
         await repo.addBookTitle(
@@ -120,10 +224,11 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
           title: title,
           publishYear: year,
           price: price,
-          categoryId: _categoryId,
+                    categoryId: _categoryId,
           publisherId: _publisherId,
           description: desc.isNotEmpty ? desc : null,
           numberOfCopies: copies,
+          coverImage: _selectedImageFile,
         );
 
         // Thêm tác giả vào sách
@@ -131,12 +236,24 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
         await authorRepo.addAuthorToBook(id, _authorId!, null);
       }
 
+      // Invalidate provider để refresh danh sách sách
+      ref.invalidate(supabaseBookTitlesProvider);
+
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isEdit ? 'Cập nhật sách thành công!' : 'Thêm sách thành công!'),
+          backgroundColor: Colors.green,
+        ),
+      );
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lưu thất bại: $e')),
+        SnackBar(
+          content: Text('Lưu thất bại: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -255,15 +372,31 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
     _publisherId =
         _publisherId != null && publishers.any((p) => p.id == _publisherId)
             ? _publisherId
-            : null;
-
-    return ListView(
+            : null;    return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Form(
           key: _formKey,
           child: Column(
             children: [
+              // Widget chọn ảnh bìa
+              GestureDetector(
+                onTap: _saving ? null : _pickImage,
+                child: Container(
+                  height: 180,
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[400]!),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: _buildCoverImageWidget(),
+                  ),
+                ),
+              ),
               // Mã sách (chỉ hiện khi thêm mới)
               if (!_isEdit) ...[
                 TextFormField(

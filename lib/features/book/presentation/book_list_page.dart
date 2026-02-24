@@ -263,6 +263,35 @@ class _BookCard extends StatelessWidget {
 
   final SupabaseBookTitle item;
 
+  Widget _buildCoverImage(SupabaseBookTitle book, ColorScheme scheme) {
+    if (book.imageUrl != null && book.imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        child: Image.network(
+          book.imageUrl!,
+          fit: BoxFit.contain,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(Icons.menu_book, size: 48, color: scheme.outline);
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return Icon(Icons.menu_book, size: 48, color: scheme.outline);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -276,15 +305,14 @@ class _BookCard extends StatelessWidget {
               builder: (_) => BookDetailPage(bookId: item.id),
             ),
           );
-        },
-        child: Column(
+        },        child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Cover placeholder
+            // Cover image hoặc placeholder
             Container(
               height: 140,
               color: scheme.surfaceContainerHighest,
-              child: const Icon(Icons.menu_book, size: 48),
+              child: _buildCoverImage(item, scheme),
             ),
             Expanded(
               child: Padding(

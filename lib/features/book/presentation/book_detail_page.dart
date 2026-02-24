@@ -103,65 +103,78 @@ class BookDetailPage extends ConsumerWidget {
               ],
             ),
           ),
-        ),
-        data: (state) {
+        ),        data: (state) {
           return Column(
             children: [
-              _HeaderCard(
-                title: state.bookTitle.title.isNotEmpty 
-                    ? state.bookTitle.title 
-                    : state.bookTitle.id,
-                author: state.authorName,
-                subtitle: '${state.publisherName} • ${state.categoryName}',
-                description: state.bookTitle.description ?? '',
-                availableCopies: state.availableCopiesCount,
-                totalCopies: state.copies.length,
-                hasReservation: state.hasActiveReservation,
-              ),
-              // Reservation button when out of stock
-              if (state.availableCopiesCount == 0 && state.copies.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _ReservationButton(
-                    bookId: bookId,
-                    hasActiveReservation: state.hasActiveReservation,
-                    onReserve: (memberId) async {
-                      try {
-                        await ref
-                            .read(bookDetailViewModelProvider(bookId).notifier)
-                            .createReservation(memberId);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Đặt trước thành công!'),
-                              backgroundColor: Colors.green.shade600,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Lỗi: $e'),
-                              backgroundColor: Colors.red.shade600,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                ),
-              const Divider(height: 1),
+              // Header and reservation button wrapped in SingleChildScrollView if no copies
               Expanded(
-                child: state.copies.isEmpty
-                    ? const Center(child: Text('Chưa có bản sao nào.'))
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: state.copies.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final c = state.copies[index];
-                          return _CopyTile(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    _HeaderCard(
+                      title: state.bookTitle.title.isNotEmpty 
+                          ? state.bookTitle.title 
+                          : state.bookTitle.id,
+                      author: state.authorName,
+                      subtitle: '${state.publisherName} • ${state.categoryName}',
+                      description: state.bookTitle.description ?? '',
+                      availableCopies: state.availableCopiesCount,
+                      totalCopies: state.copies.length,
+                      hasReservation: state.hasActiveReservation,
+                      imageUrl: state.bookTitle.imageUrl,
+                    ),
+                    // Reservation button when out of stock
+                    if (state.availableCopiesCount == 0 && state.copies.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _ReservationButton(
+                          bookId: bookId,
+                          hasActiveReservation: state.hasActiveReservation,
+                          onReserve: (memberId) async {
+                            try {
+                              await ref
+                                  .read(bookDetailViewModelProvider(bookId).notifier)
+                                  .createReservation(memberId);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Đặt trước thành công!'),
+                                    backgroundColor: Colors.green.shade600,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Lỗi: $e'),
+                                    backgroundColor: Colors.red.shade600,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    const Divider(height: 1),
+                    // Book copies section
+                    if (state.copies.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: Text('Chưa có bản sao nào.')),
+                      )
+                    else
+                      ...state.copies.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final c = entry.value;
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            left: 16,
+                            right: 16,
+                            top: index == 0 ? 16 : 4,
+                            bottom: index == state.copies.length - 1 ? 80 : 4,
+                          ),
+                          child: _CopyTile(
                             copyId: c.barcode,
                             status: c.status,
                             onDelete: () async {
@@ -202,9 +215,11 @@ class BookDetailPage extends ConsumerWidget {
                                 );
                               }
                             },
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      }),
+                  ],
+                ),
               ),
             ],
           );
@@ -239,6 +254,7 @@ class _HeaderCard extends StatelessWidget {
     required this.availableCopies,
     required this.totalCopies,
     required this.hasReservation,
+    this.imageUrl,
   });
 
   final String title;
@@ -247,7 +263,36 @@ class _HeaderCard extends StatelessWidget {
   final String description;
   final int availableCopies;
   final int totalCopies;
-  final bool hasReservation;
+  final bool hasReservation;  final String? imageUrl;
+
+  Widget _buildCoverImage(ColorScheme scheme) {
+    if (imageUrl != null && imageUrl!.isNotEmpty) {
+      return ClipRRect(
+        child: Image.network(
+          imageUrl!,
+          fit: BoxFit.contain,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(Icons.menu_book, size: 64, color: scheme.outline);
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return Icon(Icons.menu_book, size: 64, color: scheme.outline);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -268,7 +313,7 @@ class _HeaderCard extends StatelessWidget {
             Container(
               height: 180,
               color: scheme.surfaceContainerHighest,
-              child: const Icon(Icons.menu_book, size: 64),
+              child: _buildCoverImage(scheme),
             ),
             Padding(
               padding: const EdgeInsets.all(16),
