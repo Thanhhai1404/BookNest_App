@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,8 +17,8 @@ final _currencyFormat = NumberFormat('#,###', 'vi_VN');
 
 /// Provider for member detail - auto-refreshes when member data changes
 final memberDetailProvider =
-    FutureProvider.family.autoDispose<Member?, String>((ref, memberId) {
-  return ref.watch(memberRepositoryProvider).getMemberById(memberId);
+    FutureProvider.family.autoDispose<SupabaseMember?, String>((ref, memberId) {
+  return ref.watch(supabaseMemberRepositoryProvider).getMemberById(memberId);
 });
 
 /// Provider for member's transaction history
@@ -33,15 +31,6 @@ class MemberDetailPage extends ConsumerWidget {
   const MemberDetailPage({super.key, required this.memberId});
 
   final String memberId;
-
-  String _fullName(Member m) {
-    final parts = <String>[];
-    for (final p in [m.lastName, m.middleName, m.firstName]) {
-      final v = (p ?? '').trim();
-      if (v.isNotEmpty) parts.add(v);
-    }
-    return parts.isEmpty ? m.id : parts.join(' ');
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -66,7 +55,7 @@ class MemberDetailPage extends ConsumerWidget {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(_fullName(member)),
+            title: Text(member.fullName),
             actions: [
               IconButton(
                 tooltip: 'Sửa',
@@ -92,7 +81,7 @@ class MemberDetailPage extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             children: [
               // --- Member Info Card ---
-              _MemberInfoCard(member: member, fullName: _fullName(member)),
+              _MemberInfoCard(member: member),
               const SizedBox(height: 16),
 
               // --- Wallet & Points Card ---
@@ -128,12 +117,12 @@ class MemberDetailPage extends ConsumerWidget {
   }
 
   Future<void> _showDeleteDialog(
-      BuildContext context, WidgetRef ref, Member member) async {
+      BuildContext context, WidgetRef ref, SupabaseMember member) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xoá hội viên?'),
-        content: Text('Bạn chắc chắn muốn xoá ${_fullName(member)}?'),
+        content: Text('Bạn chắc chắn muốn xoá ${member.fullName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -156,14 +145,14 @@ class MemberDetailPage extends ConsumerWidget {
   }
 
   Future<void> _showTopUpDialog(
-      BuildContext context, WidgetRef ref, Member member) async {
+      BuildContext context, WidgetRef ref, SupabaseMember member) async {
     final result = await showDialog<int>(
       context: context,
       builder: (ctx) => _TopUpDialog(member: member),
     );
     if (result != null && result > 0) {
       try {
-        await ref.read(memberRepositoryProvider).topUpWallet(member.id, result);
+        await ref.read(supabaseMemberRepositoryProvider).topUpWallet(member.id, result);
         // Refresh data
         ref.invalidate(memberDetailProvider(memberId));
         ref.invalidate(memberTransactionsProvider(memberId));
@@ -189,12 +178,11 @@ class MemberDetailPage extends ConsumerWidget {
     }
   }
 
-  void _showMemberCardDialog(BuildContext context, Member member) {
+  void _showMemberCardDialog(BuildContext context, SupabaseMember member) {
     showDialog(
       context: context,
       builder: (ctx) => _MemberCardDialog(
         member: member,
-        fullName: _fullName(member),
       ),
     );
   }
@@ -202,14 +190,21 @@ class MemberDetailPage extends ConsumerWidget {
 
 /// Member Info Card with avatar and basic info
 class _MemberInfoCard extends StatelessWidget {
-  const _MemberInfoCard({required this.member, required this.fullName});
+  const _MemberInfoCard({required this.member});
 
-  final Member member;
-  final String fullName;
+  final SupabaseMember member;
+
+  ImageProvider? _getAvatarImage() {
+    if (member.avatarUrl == null || member.avatarUrl!.trim().isEmpty) {
+      return null;
+    }
+    return NetworkImage(member.avatarUrl!);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final avatarImage = _getAvatarImage();
 
     return Card(
       child: Padding(
@@ -218,12 +213,10 @@ class _MemberInfoCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 36,
-              backgroundImage: (member.avatarPath ?? '').trim().isEmpty
-                  ? null
-                  : FileImage(File(member.avatarPath!)),
-              child: (member.avatarPath ?? '').trim().isEmpty
+              backgroundImage: avatarImage,
+              child: avatarImage == null
                   ? Text(
-                      fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
+                      member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?',
                       style: theme.textTheme.headlineMedium,
                     )
                   : null,
@@ -234,7 +227,7 @@ class _MemberInfoCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    fullName,
+                    member.fullName,
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -290,7 +283,7 @@ class _InfoRow extends StatelessWidget {
 class _WalletPointsCard extends StatelessWidget {
   const _WalletPointsCard({required this.member, required this.onTopUp});
 
-  final Member member;
+  final SupabaseMember member;
   final VoidCallback onTopUp;
   @override
   Widget build(BuildContext context) {
@@ -663,7 +656,7 @@ class _TransactionTile extends StatelessWidget {
 class _OtherInfoCard extends StatelessWidget {
   const _OtherInfoCard({required this.member});
 
-  final Member member;
+  final SupabaseMember member;
 
   @override
   Widget build(BuildContext context) {
@@ -673,7 +666,7 @@ class _OtherInfoCard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.card_membership),
             title: const Text('Gói hội viên'),
-            subtitle: Text(member.subscriptionId),
+            subtitle: Text(member.packageName),
           ),
           const Divider(height: 1),
           ListTile(
@@ -691,7 +684,7 @@ class _OtherInfoCard extends StatelessWidget {
 class _TopUpDialog extends StatefulWidget {
   const _TopUpDialog({required this.member});
 
-  final Member member;
+  final SupabaseMember member;
 
   @override
   State<_TopUpDialog> createState() => _TopUpDialogState();
@@ -840,10 +833,9 @@ class _TopUpDialogState extends State<_TopUpDialog> {
 
 /// Member Card Dialog with QR code
 class _MemberCardDialog extends StatelessWidget {
-  const _MemberCardDialog({required this.member, required this.fullName});
+  const _MemberCardDialog({required this.member});
 
-  final Member member;
-  final String fullName;
+  final SupabaseMember member;
 
   @override
   Widget build(BuildContext context) {
@@ -918,7 +910,7 @@ class _MemberCardDialog extends StatelessWidget {
 
             // Member name
             Text(
-              fullName,
+              member.fullName,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

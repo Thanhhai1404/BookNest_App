@@ -1,18 +1,23 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../data/db/app_database.dart';
-import '../../../data/repositories/member_repository.dart';
+import '../../members/data/member_repository.dart';
 
-// Re-export memberRepositoryProvider for backward compatibility
-export '../../../data/repositories/member_repository.dart'
-    show memberRepositoryProvider;
+// Re-export providers for backward compatibility
+export '../../members/data/member_repository.dart'
+    show supabaseMemberRepositoryProvider, SupabaseMember, generateSupabaseMemberIdProvider;
+export '../../members/data/package_repository.dart'
+    show packageRepositoryProvider, SupabasePackage, packagesProvider;
 
 class MemberListState {
   const MemberListState({
     required this.query,
     required this.debouncedQuery,
+    required this.members,
+    required this.isLoading,
+    this.error,
   });
 
   /// Giá trị user đang nhập (realtime)
@@ -21,19 +26,46 @@ class MemberListState {
   /// Giá trị sau debounce (dùng để query DB)
   final String debouncedQuery;
 
-  MemberListState copyWith({String? query, String? debouncedQuery}) {
+  /// Danh sách hội viên
+  final List<SupabaseMember> members;
+
+  /// Đang tải dữ liệu
+  final bool isLoading;
+
+  /// Lỗi nếu có
+  final String? error;
+
+  MemberListState copyWith({
+    String? query,
+    String? debouncedQuery,
+    List<SupabaseMember>? members,
+    bool? isLoading,
+    String? error,
+  }) {
     return MemberListState(
       query: query ?? this.query,
       debouncedQuery: debouncedQuery ?? this.debouncedQuery,
+      members: members ?? this.members,
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
     );
   }
 
-  static const initial = MemberListState(query: '', debouncedQuery: '');
+  static const initial = MemberListState(
+    query: '',
+    debouncedQuery: '',
+    members: [],
+    isLoading: true,
+    error: null,
+  );
 }
 
-/// Controls search query with 500ms debounce; members list is a stream derived from query.
+/// Controls search query with 500ms debounce; members list fetched from Supabase.
 class MemberListController extends StateNotifier<MemberListState> {
-  MemberListController(this.ref) : super(MemberListState.initial);
+  MemberListController(this.ref) : super(MemberListState.initial) {
+    // Load members on init
+    _loadMembers();
+  }
 
   final Ref ref;
   Timer? _debounceTimer;
@@ -44,41 +76,120 @@ class MemberListController extends StateNotifier<MemberListState> {
     // Cancel previous timer
     _debounceTimer?.cancel();
 
-    // Debounce 500ms before updating debouncedQuery
+    // Debounce 500ms before updating debouncedQuery and fetching
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       state = state.copyWith(debouncedQuery: value);
+      _loadMembers();
     });
   }
 
   void clearQuery() {
     _debounceTimer?.cancel();
-    state = MemberListState.initial;
+    state = state.copyWith(query: '', debouncedQuery: '');
+    _loadMembers();
   }
 
   /// Set query and trigger search immediately (no debounce) - used for scanner results
   void setQueryImmediate(String value) {
     _debounceTimer?.cancel();
     state = state.copyWith(query: value, debouncedQuery: value);
+    _loadMembers();
   }
 
-  Stream<List<Member>> watchMembers() {
-    final repo = ref.read(memberRepositoryProvider);
-    final q = state.debouncedQuery.trim();
-    return repo.watchMembers(query: q.isEmpty ? null : q);
-  }
+  /// Load hoặc refresh danh sách hội viên từ Supabase
+  Future<void> _loadMembers() async {
+    state = state.copyWith(isLoading: true, error: null);
 
-  Future<void> delete(String id) async {
-    final repo = ref.read(memberRepositoryProvider);
-    await repo.deleteMember(id);
-  }
+    try {
+      final repo = ref.read(supabaseMemberRepositoryProvider);
+      final q = state.debouncedQuery.trim();
 
-  Future<void> upsert(MembersCompanion data, {required bool isUpdate}) async {
-    final repo = ref.read(memberRepositoryProvider);
-    if (isUpdate) {
-      await repo.updateMember(data);
-    } else {
-      await repo.addMember(data);
+      final members = q.isEmpty
+          ? await repo.getMembers()
+          : await repo.searchMembers(q);
+
+      state = state.copyWith(members: members, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
+  }
+
+  /// Refresh danh sách (public)
+  Future<void> refresh() async {
+    await _loadMembers();
+  }
+
+  /// Xóa hội viên
+  Future<void> delete(String id) async {
+    final repo = ref.read(supabaseMemberRepositoryProvider);
+    await repo.deleteMember(id);
+    await _loadMembers();
+  }
+  /// Thêm hội viên mới
+  /// [avatarFile] - File avatar (optional), sẽ được upload lên Storage
+  Future<void> addMember({
+    required String id,
+    String? lastName,
+    String? middleName,
+    String? firstName,
+    String? phone,
+    required String nationalId,
+    required String email,
+    String? address,
+    bool isActive = true,
+    required String packageId,
+    String? avatarUrl,
+    File? avatarFile,
+  }) async {
+    final repo = ref.read(supabaseMemberRepositoryProvider);
+    await repo.addMember(
+      id: id,
+      lastName: lastName,
+      middleName: middleName,
+      firstName: firstName,
+      phone: phone,
+      nationalId: nationalId,
+      email: email,
+      address: address,
+      isActive: isActive,
+      packageId: packageId,
+      avatarUrl: avatarUrl,
+      avatarFile: avatarFile,
+    );
+    await _loadMembers();
+  }
+  /// Cập nhật hội viên
+  /// [avatarFile] - File avatar mới (optional), sẽ được upload lên Storage
+  Future<void> updateMember({
+    required String id,
+    String? lastName,
+    String? middleName,
+    String? firstName,
+    String? phone,
+    String? nationalId,
+    String? email,
+    String? address,
+    bool? isActive,
+    String? packageId,
+    String? avatarUrl,
+    File? avatarFile,
+  }) async {
+    final repo = ref.read(supabaseMemberRepositoryProvider);
+    await repo.updateMember(
+      id: id,
+      lastName: lastName,
+      middleName: middleName,
+      firstName: firstName,
+      phone: phone,
+      nationalId: nationalId,
+      email: email,
+      address: address,
+      isActive: isActive,
+      packageId: packageId,
+      avatarUrl: avatarUrl,
+      avatarFile: avatarFile,
+    );
+    await _loadMembers();
   }
 
   @override
@@ -93,11 +204,8 @@ final memberListControllerProvider =
   return MemberListController(ref);
 });
 
-/// Convenience stream provider that updates when debounced query changes.
-final memberListStreamProvider =
-    StreamProvider.autoDispose<List<Member>>((ref) {
-  final controller = ref.watch(memberListControllerProvider.notifier);
-  // Only rebuild when debouncedQuery changes
-  ref.watch(memberListControllerProvider.select((s) => s.debouncedQuery));
-  return controller.watchMembers();
+/// Provider để tạo mã hội viên mới
+final generateMemberIdProvider = FutureProvider<String>((ref) async {
+  final repo = ref.watch(supabaseMemberRepositoryProvider);
+  return repo.generateNextMemberId();
 });
