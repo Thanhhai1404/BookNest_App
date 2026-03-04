@@ -377,14 +377,16 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi xóa hội viên: $e');
     }
   }
-
   /// Nạp tiền vào ví
+  /// Bước 1: Lấy số dư hiện tại và cộng thêm amount, update vào bảng doc_gia
+  /// Bước 2: Insert một dòng vào bảng giao_dich_vi
   Future<SupabaseMember> topUpWallet(String memberId, int amount) async {
     if (amount <= 0) {
       throw ArgumentError('Số tiền phải là số dương');
     }
 
     try {
+      // Bước 1: Lấy số dư hiện tại và cộng thêm
       final member = await getMemberById(memberId);
       if (member == null) {
         throw StateError('Không tìm thấy hội viên: $memberId');
@@ -392,19 +394,39 @@ class SupabaseMemberRepository {
 
       final newBalance = member.walletBalance + amount;
 
-      return updateMember(id: memberId, walletBalance: newBalance);
+      // Update số dư trong bảng doc_gia
+      final updatedMember = await updateMember(id: memberId, walletBalance: newBalance);
+
+      // Bước 2: Insert giao dịch vào bảng giao_dich_vi
+      await _client.from('giao_dich_vi').insert({
+        'madg': memberId.trim(),
+        'loaigiaodich': 'Nạp tiền',
+        'sotien': amount,
+        'ngaygiaodich': DateTime.now().toIso8601String(),
+        'noidung': 'Nạp tiền vào ví',
+      });
+
+      return updatedMember;
     } catch (e) {
       throw Exception('Lỗi khi nạp tiền: $e');
     }
   }
-
   /// Trừ tiền từ ví
-  Future<SupabaseMember> deductWallet(String memberId, int amount, {bool allowNegative = false}) async {
+  /// Bước 1: Kiểm tra số dư và trừ tiền, update vào bảng doc_gia
+  /// Bước 2: Insert giao dịch vào bảng giao_dich_vi
+  Future<SupabaseMember> deductWallet(
+    String memberId, 
+    int amount, {
+    bool allowNegative = false,
+    String transactionType = 'Thanh toán',
+    String? description,
+  }) async {
     if (amount <= 0) {
       throw ArgumentError('Số tiền phải là số dương');
     }
 
     try {
+      // Bước 1: Kiểm tra số dư
       final member = await getMemberById(memberId);
       if (member == null) {
         throw StateError('Không tìm thấy hội viên: $memberId');
@@ -416,7 +438,19 @@ class SupabaseMemberRepository {
 
       final newBalance = member.walletBalance - amount;
 
-      return updateMember(id: memberId, walletBalance: newBalance);
+      // Update số dư trong bảng doc_gia
+      final updatedMember = await updateMember(id: memberId, walletBalance: newBalance);
+
+      // Bước 2: Insert giao dịch vào bảng giao_dich_vi
+      await _client.from('giao_dich_vi').insert({
+        'madg': memberId.trim(),
+        'loaigiaodich': transactionType,
+        'sotien': amount,
+        'ngaygiaodich': DateTime.now().toIso8601String(),
+        'noidung': description ?? transactionType,
+      });
+
+      return updatedMember;
     } catch (e) {
       throw Exception('Lỗi khi trừ tiền: $e');
     }

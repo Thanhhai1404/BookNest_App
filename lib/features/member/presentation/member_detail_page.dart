@@ -4,11 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../../core/constants/enums.dart';
-import '../../../data/db/app_database.dart';
-import '../../../data/repositories/finance_repository.dart';
-import '../../loan/data/repositories/loan_repository.dart';
-import '../../loan/presentation/loan_view_model.dart';
+import '../../loan/data/repositories/supabase_loan_repository.dart';
+import '../../members/data/supabase_transaction_repository.dart';
 import 'member_form_page.dart';
 import 'member_view_model.dart';
 
@@ -19,12 +16,6 @@ final _currencyFormat = NumberFormat('#,###', 'vi_VN');
 final memberDetailProvider =
     FutureProvider.family.autoDispose<SupabaseMember?, String>((ref, memberId) {
   return ref.watch(supabaseMemberRepositoryProvider).getMemberById(memberId);
-});
-
-/// Provider for member's transaction history
-final memberTransactionsProvider = FutureProvider.family
-    .autoDispose<List<Transaction>, String>((ref, memberId) {
-  return ref.watch(financeRepositoryProvider).getTransactionsByMember(memberId);
 });
 
 class MemberDetailPage extends ConsumerWidget {
@@ -151,11 +142,10 @@ class MemberDetailPage extends ConsumerWidget {
       builder: (ctx) => _TopUpDialog(member: member),
     );
     if (result != null && result > 0) {
-      try {
-        await ref.read(supabaseMemberRepositoryProvider).topUpWallet(member.id, result);
+      try {        await ref.read(supabaseMemberRepositoryProvider).topUpWallet(member.id, result);
         // Refresh data
         ref.invalidate(memberDetailProvider(memberId));
-        ref.invalidate(memberTransactionsProvider(memberId));
+        ref.invalidate(memberTransactionsSupabaseProvider(memberId));
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -386,7 +376,7 @@ class _TransactionHistoryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final transactionsAsync = ref.watch(memberTransactionsProvider(memberId));
+    final transactionsAsync = ref.watch(memberTransactionsSupabaseProvider(memberId));
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
     return Card(
@@ -459,7 +449,7 @@ class _TransactionHistoryCard extends ConsumerWidget {
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final tx = displayList[index];
-                      return _TransactionTile(
+                      return _SupabaseTransactionTile(
                         transaction: tx,
                         dateFormat: dateFormat,
                       );
@@ -487,7 +477,7 @@ class _TransactionHistoryCard extends ConsumerWidget {
 
   void _showAllTransactions(
     BuildContext context,
-    List<Transaction> transactions,
+    List<SupabaseTransaction> transactions,
     DateFormat dateFormat,
   ) {
     showModalBottomSheet(
@@ -531,8 +521,7 @@ class _TransactionHistoryCard extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
-            const Divider(height: 1),
+            ),            const Divider(height: 1),
             // List
             Expanded(
               child: ListView.separated(
@@ -541,7 +530,7 @@ class _TransactionHistoryCard extends ConsumerWidget {
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final tx = transactions[index];
-                  return _TransactionTile(
+                  return _SupabaseTransactionTile(
                     transaction: tx,
                     dateFormat: dateFormat,
                   );
@@ -555,14 +544,14 @@ class _TransactionHistoryCard extends ConsumerWidget {
   }
 }
 
-/// Single transaction tile
-class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({
+/// Single transaction tile for Supabase Transaction
+class _SupabaseTransactionTile extends StatelessWidget {
+  const _SupabaseTransactionTile({
     required this.transaction,
     required this.dateFormat,
   });
 
-  final Transaction transaction;
+  final SupabaseTransaction transaction;
   final DateFormat dateFormat;
 
   @override
@@ -570,41 +559,37 @@ class _TransactionTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     // Determine icon and color based on transaction type
-    final txType = TransactionType.fromValue(transaction.type);
-    final isCredit = txType == TransactionType.topUp ||
-        txType == TransactionType.refund ||
-        txType == TransactionType.reward;
+    final txType = transaction.type;
+    final isCredit = txType == 'Nạp tiền' || txType == 'Hoàn tiền' || txType == 'Thưởng';
 
     final IconData icon;
     final Color iconColor;
     final Color amountColor;
+    
     switch (txType) {
-      case TransactionType.topUp:
+      case 'Nạp tiền':
         icon = Icons.arrow_upward;
         iconColor = Colors.green;
         amountColor = Colors.green;
-        break;
-      case TransactionType.refund:
+      case 'Hoàn tiền':
         icon = Icons.replay;
         iconColor = Colors.blue;
         amountColor = Colors.blue;
-        break;
-      case TransactionType.reward:
+      case 'Thưởng':
         icon = Icons.stars;
         iconColor = Colors.amber;
         amountColor = Colors.amber.shade700;
-        break;
-      case TransactionType.payment:
-      case TransactionType.finePayment:
+      case 'Thanh toán':
+      case 'Thanh toán phạt':
+      default:
         icon = Icons.arrow_downward;
         iconColor = Colors.red;
         amountColor = Colors.red;
-        break;
     }
 
     final amountText = isCredit
         ? '+${_currencyFormat.format(transaction.amount)}'
-        : _currencyFormat.format(transaction.amount);
+        : '-${_currencyFormat.format(transaction.amount)}';
 
     return ListTile(
       leading: Container(
@@ -616,12 +601,14 @@ class _TransactionTile extends StatelessWidget {
         child: Icon(icon, color: iconColor, size: 20),
       ),
       title: Text(
-        transaction.description ?? _getDefaultDescription(txType),
+        transaction.description ?? transaction.displayType,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        dateFormat.format(transaction.createdAt),
+        transaction.transactionDate != null
+            ? dateFormat.format(transaction.transactionDate!)
+            : '-',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.outline,
         ),
@@ -634,21 +621,6 @@ class _TransactionTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _getDefaultDescription(TransactionType type) {
-    switch (type) {
-      case TransactionType.topUp:
-        return 'Nạp tiền';
-      case TransactionType.payment:
-        return 'Thanh toán';
-      case TransactionType.refund:
-        return 'Hoàn tiền';
-      case TransactionType.finePayment:
-        return 'Thanh toán phạt';
-      case TransactionType.reward:
-        return 'Điểm thưởng';
-    }
   }
 }
 
@@ -949,7 +921,7 @@ class _LoanHistoryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final loansAsync = ref.watch(memberLoanHistoryProvider(memberId));
+    final loansAsync = ref.watch(memberLoanHistorySupabaseProvider(memberId));
     final dateFormat = DateFormat('dd/MM/yyyy');
 
     return Card(
@@ -1044,10 +1016,9 @@ class _LoanHistoryCard extends ConsumerWidget {
       ),
     );
   }
-
   void _showAllLoans(
     BuildContext context,
-    List<LoanWithDetails> loans,
+    List<SupabaseLoanWithDetails> loans,
     DateFormat dateFormat,
   ) {
     showModalBottomSheet(
@@ -1092,14 +1063,13 @@ class _LoanHistoryCard extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),
-            // Statistics row
+            const Divider(height: 1),            // Statistics row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
                   _StatChip(
-                    label: 'Tổng',
+                    label: 'Phiếu mượn',
                     value: loans.length.toString(),
                     color: Colors.blue,
                   ),
@@ -1107,16 +1077,16 @@ class _LoanHistoryCard extends ConsumerWidget {
                   _StatChip(
                     label: 'Đang mượn',
                     value: loans
-                        .where((l) => l.loan.returnDate == null)
+                        .where((l) => l.activeBooksCount > 0)
                         .length
                         .toString(),
                     color: Colors.orange,
                   ),
                   const SizedBox(width: 8),
                   _StatChip(
-                    label: 'Đã trả',
+                    label: 'Hoàn thành',
                     value: loans
-                        .where((l) => l.loan.returnDate != null)
+                        .where((l) => l.activeBooksCount == 0)
                         .length
                         .toString(),
                     color: Colors.green,
@@ -1193,32 +1163,32 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-/// Tile for loan history item
+/// Tile for loan history item (Supabase version)
 class _LoanHistoryTile extends StatelessWidget {
   const _LoanHistoryTile({
     required this.loan,
     required this.dateFormat,
   });
 
-  final LoanWithDetails loan;
+  final SupabaseLoanWithDetails loan;
   final DateFormat dateFormat;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isReturned = loan.loan.returnDate != null;
-    final isOverdue = loan.isOverdue;
+    final isAllReturned = loan.activeBooksCount == 0;
+    final hasOverdue = loan.hasOverdueBooks;
 
     // Determine status
     String statusText;
     Color statusColor;
     IconData statusIcon;
 
-    if (isReturned) {
-      statusText = 'Đã trả';
+    if (isAllReturned) {
+      statusText = 'Hoàn thành';
       statusColor = Colors.green;
       statusIcon = Icons.check_circle;
-    } else if (isOverdue) {
+    } else if (hasOverdue) {
       statusText = 'Quá hạn';
       statusColor = Colors.red;
       statusIcon = Icons.warning;
@@ -1227,6 +1197,11 @@ class _LoanHistoryTile extends StatelessWidget {
       statusColor = Colors.orange;
       statusIcon = Icons.schedule;
     }
+
+    // Get first book title for display
+    final firstDetail = loan.details.isNotEmpty ? loan.details.first : null;
+    final displayTitle = firstDetail?.bookTitle ?? loan.loan.id;
+    final moreBooks = loan.details.length > 1 ? ' (+${loan.details.length - 1} sách khác)' : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1244,15 +1219,15 @@ class _LoanHistoryTile extends StatelessWidget {
             child: Icon(statusIcon, color: statusColor, size: 20),
           ),
           const SizedBox(width: 12),
-          // Content - use Expanded to prevent overflow
+          // Content
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Book title
+                // Book title(s)
                 Text(
-                  loan.bookTitle,
+                  '$displayTitle$moreBooks',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -1260,46 +1235,38 @@ class _LoanHistoryTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                // Copy ID and Loan ID
+                // Loan ID
                 Text(
-                  'Mã: ${loan.copyId} • Phiếu #${loan.loan.id}',
+                  'Phiếu #${loan.loan.id} • ${loan.details.length} sách',
                   style: theme.textTheme.bodySmall,
                 ),
                 const SizedBox(height: 2),
-                // Dates - wrap to prevent overflow
+                // Dates
                 Wrap(
                   spacing: 4,
                   runSpacing: 2,
                   children: [
                     Text(
-                      'Mượn: ${dateFormat.format(loan.loan.borrowDate)}',
+                      'Mượn: ${loan.loan.borrowDate != null ? dateFormat.format(loan.loan.borrowDate!) : '---'}',
                       style: theme.textTheme.bodySmall,
                     ),
-                    if (isReturned) ...[
-                      Text('→', style: theme.textTheme.bodySmall),
-                      Text(
-                        'Trả: ${dateFormat.format(loan.loan.returnDate!)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.green,
-                        ),
-                      ),
-                    ] else ...[
+                    if (firstDetail?.dueDate != null) ...[
                       Text('•', style: theme.textTheme.bodySmall),
                       Text(
-                        'Hạn: ${dateFormat.format(loan.loan.dueDate)}',
+                        'Hạn: ${dateFormat.format(firstDetail!.dueDate!)}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: isOverdue ? Colors.red : null,
-                          fontWeight: isOverdue ? FontWeight.bold : null,
+                          color: hasOverdue ? Colors.red : null,
+                          fontWeight: hasOverdue ? FontWeight.bold : null,
                         ),
                       ),
                     ],
                   ],
                 ),
-                // Show overdue days if applicable
-                if (isOverdue && !isReturned) ...[
+                // Show overdue info if applicable
+                if (hasOverdue && !isAllReturned) ...[
                   const SizedBox(height: 4),
                   Text(
-                    'Trễ ${loan.overdueDays} ngày',
+                    '${loan.details.where((d) => d.isOverdue).length} sách quá hạn',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: Colors.red,
                       fontWeight: FontWeight.bold,

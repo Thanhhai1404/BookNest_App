@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/presentation/login_view_model.dart';
 import '../../book/presentation/book_list_page.dart';
 import '../../loan/presentation/fine_list_page.dart';
-import '../../loan/presentation/loan_list_page.dart';
+import '../../loan/presentation/supabase_loan_list_page.dart';
 import '../../member/presentation/member_list_page.dart';
 import '../../settings/presentation/backup_restore_page.dart';
 import 'home_view_model.dart';
@@ -176,15 +176,14 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),
-                  _MenuCard(
+                  ),                  _MenuCard(
                     icon: Icons.output_rounded,
                     title: 'Mượn\nSách',
                     color: Colors.green,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const LoanListPage(),
+                          builder: (_) => const SupabaseLoanListPage(),
                         ),
                       );
                     },
@@ -196,7 +195,7 @@ class HomePage extends ConsumerWidget {
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const LoanListPage(),
+                          builder: (_) => const SupabaseLoanListPage(),
                         ),
                       );
                     },
