@@ -216,6 +216,7 @@ class SupabaseReturnBookResult {
     required this.lateDays,
     required this.fineAmount,
     this.pointsEarned = 0,
+    this.depositRefunded = 0,
   });
 
   final String barcode;
@@ -223,9 +224,13 @@ class SupabaseReturnBookResult {
   final int lateDays;
   final int fineAmount;
   final int pointsEarned;
+  final int depositRefunded; // Tiền cọc đã hoàn
 
   /// Có phạt cần thu không
   bool get hasFine => isOverdue && fineAmount > 0;
+
+  /// Số tiền thực nhận sau khi trừ phạt
+  int get netRefund => depositRefunded - fineAmount;
 }
 
 // ==================== REPOSITORY ====================
@@ -261,6 +266,8 @@ class SupabaseLoanRepository {
   /// 2. Insert vào phieu_muon
   /// 3. Loop insert vào chi_tiet_muon cho từng sách
   /// 4. Update trạng thái sách sang 1 (Đang mượn)
+  /// 5. Trừ tiền cọc từ ví hội viên
+  /// 6. Ghi log giao dịch trừ cọc
   Future<String> createLoan({
     required String maDG,
     required List<String> maVachList,
@@ -270,7 +277,56 @@ class SupabaseLoanRepository {
     try {
       if (maVachList.isEmpty) {
         throw Exception('Danh sách sách mượn không được rỗng');
-      }      // Lấy mã thẻ thành viên
+      }
+
+      // ========== BƯỚC 1: Kiểm tra số dư ví, tiền cọc và giới hạn sách ==========
+      final memberResponse = await _client
+          .from(_memberTable)
+          .select('soduvi, magoi, goi_hoi_vien(tiencoc, sosachtoida)')
+          .eq('madg', maDG.trim())
+          .maybeSingle();
+
+      if (memberResponse == null) {
+        throw Exception('Không tìm thấy độc giả $maDG');
+      }
+
+      final soduvi = (memberResponse['soduvi'] as num?)?.toInt() ?? 0;
+      final goiHoiVien = memberResponse['goi_hoi_vien'] as Map<String, dynamic>?;
+      final tiencoc = (goiHoiVien?['tiencoc'] as num?)?.toInt() ?? 0;
+      final sosachtoida = (goiHoiVien?['sosachtoida'] as num?)?.toInt() ?? 5;
+
+      // ========== BƯỚC 2: Đếm số sách đang mượn (chưa trả) ==========
+      final borrowingCountResponse = await _client
+          .from(_loanDetailTable)
+          .select('mavach, phieu_muon!inner(madg)')
+          .eq('phieu_muon.madg', maDG.trim())
+          .eq('trangthai', 0); // 0: Đang mượn (chưa trả)
+
+      final soSachDangMuon = (borrowingCountResponse as List).length;
+
+      // ========== BƯỚC 3: Kiểm tra giới hạn sách ==========
+      final tongSachSauKhiMuon = soSachDangMuon + maVachList.length;
+      if (tongSachSauKhiMuon > sosachtoida) {
+        throw Exception(
+          'Vượt quá giới hạn! Gói của bạn chỉ được mượn tối đa $sosachtoida cuốn. '
+          'Bạn đang mượn $soSachDangMuon cuốn, không thể mượn thêm ${maVachList.length} cuốn nữa.'
+        );
+      }
+
+      // ========== BƯỚC 4: Tính tổng tiền cọc (theo số đầu sách) ==========
+      final int tongTienCoc = tiencoc * maVachList.length;
+
+      // ========== BƯỚC 5: Kiểm tra số dư ví ==========
+      if (soduvi < tongTienCoc) {
+        throw Exception(
+          'Số dư ví không đủ để mượn ${maVachList.length} cuốn sách. '
+          'Cần tối thiểu ${_formatCurrency(tongTienCoc)} VNĐ (${_formatCurrency(tiencoc)}/cuốn). '
+          'Số dư hiện tại: ${_formatCurrency(soduvi)} VNĐ. '
+          'Vui lòng nạp thêm ${_formatCurrency(tongTienCoc - soduvi)} VNĐ.'
+        );
+      }
+
+      // ========== BƯỚC 6: Lấy mã thẻ thành viên ==========
       final cardResponse = await _client
           .from('the_thanh_vien')
           .select('mast')
@@ -280,11 +336,13 @@ class SupabaseLoanRepository {
 
       if (cardResponse == null) {
         throw Exception('Không tìm thấy thẻ thành viên hợp lệ cho độc giả $maDG');
-      }      final mast = cardResponse['mast'] as String;
+      }
+
+      final mast = cardResponse['mast'] as String;
       final mapm = _generateLoanId();
       final ngaymuon = DateTime.now();
 
-      // 1. Insert phiếu mượn
+      // ========== BƯỚC 7: Insert phiếu mượn ==========
       await _client.from(_loanTable).insert({
         'mapm': mapm,
         'ngaymuon': ngaymuon.toIso8601String(),
@@ -294,7 +352,7 @@ class SupabaseLoanRepository {
         'mast': mast,
       });
 
-      // 2. Insert chi tiết mượn cho từng sách
+      // ========== BƯỚC 8: Insert chi tiết mượn cho từng sách ==========
       for (final mavach in maVachList) {
         await _client.from(_loanDetailTable).insert({
           'mapm': mapm,
@@ -306,17 +364,47 @@ class SupabaseLoanRepository {
           'trangthai': 0, // 0: Đang mượn
         });
 
-        // 3. Update trạng thái sách sang 1 (Đang mượn)
+        // Update trạng thái sách sang 1 (Đang mượn)
         await _client
             .from(_bookTable)
             .update({'trangthai': 1})
             .eq('mavach', mavach);
-      }      debugPrint('✅ Tạo phiếu mượn thành công: $mapm với ${maVachList.length} sách');
+      }
+
+      // ========== BƯỚC 9: Trừ tiền cọc từ ví ==========
+      if (tongTienCoc > 0) {
+        final newBalance = soduvi - tongTienCoc;
+        await _client
+            .from(_memberTable)
+            .update({'soduvi': newBalance})
+            .eq('madg', maDG.trim());
+
+        // ========== BƯỚC 10: Ghi log giao dịch trừ cọc ==========
+        await _client.from('giao_dich_vi').insert({
+          'madg': maDG.trim(),
+          'loaigiaodich': 'Trừ tiền cọc',
+          'sotien': tongTienCoc,
+          'ngaygiaodich': DateTime.now().toIso8601String(),
+          'noidung': 'Cọc mượn ${maVachList.length} sách phiếu $mapm',
+        });
+
+        debugPrint('💰 Đã trừ tiền cọc: ${_formatCurrency(tongTienCoc)} VNĐ (${maVachList.length} cuốn x ${_formatCurrency(tiencoc)})');
+      }
+
+      debugPrint('✅ Tạo phiếu mượn thành công: $mapm với ${maVachList.length} sách');
       return mapm;
     } catch (e) {
       debugPrint('❌ Lỗi khi tạo phiếu mượn: $e');
-      throw Exception('Lỗi khi tạo phiếu mượn: $e');
+      rethrow;
     }
+  }
+
+  /// Format tiền tệ
+  String _formatCurrency(int amount) {
+    return amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.',
+    );
   }
 
   // ==================== LẤY DANH SÁCH PHIẾU MƯỢN ====================
@@ -500,87 +588,198 @@ class SupabaseLoanRepository {
   /// 1. Tính số ngày quá hạn và tiền phạt
   /// 2. Update chi_tiet_muon: ngaytrathucte, tinhtrangsachkhitra, tienphatphatsinh, trangthai
   /// 3. Update sach.trangthai về 0 (Sẵn sàng)
-  /// 4. Nếu đúng hạn: cộng điểm cho độc giả
+  /// 4. Hoàn tiền cọc (1 cuốn) và trừ tiền phạt (nếu có)
+  /// 5. Ghi log giao dịch hoàn cọc và phạt
+  /// 6. Nếu đúng hạn: cộng điểm cho độc giả
   Future<SupabaseReturnBookResult> returnBook({
     required String loanId,
     required String barcode,
     String? bookCondition,
   }) async {
+    // Gọi hàm returnBooks với 1 sách
+    final results = await returnBooks(
+      loanId: loanId,
+      barcodes: [barcode],
+      bookCondition: bookCondition,
+    );
+    return results.first;
+  }
+
+  /// Trả nhiều cuốn sách cùng lúc
+  /// 
+  /// [loanId]: Mã phiếu mượn
+  /// [barcodes]: Danh sách mã vạch sách cần trả
+  /// [bookCondition]: Tình trạng sách khi trả (tùy chọn)
+  /// 
+  /// Logic:
+  /// 1. Lấy thông tin chi tiết từng sách mượn
+  /// 2. Tính tổng tiền phạt cho tất cả sách
+  /// 3. Update chi_tiet_muon cho từng sách
+  /// 4. Update sach.trangthai về 0 cho từng sách
+  /// 5. Hoàn tiền cọc = tiencoc * số sách trả - tổng tiền phạt
+  /// 6. Ghi log giao dịch hoàn cọc và phạt
+  /// 7. Cộng điểm nếu có sách đúng hạn
+  Future<List<SupabaseReturnBookResult>> returnBooks({
+    required String loanId,
+    required List<String> barcodes,
+    String? bookCondition,
+  }) async {
     try {
-      // Lấy thông tin chi tiết mượn
-      final detailResponse = await _client
-          .from(_loanDetailTable)          .select('*, phieu_muon(madg)')
-          .eq('mapm', loanId)
-          .eq('mavach', barcode)
-          .maybeSingle();
-
-      if (detailResponse == null) {
-        throw Exception('Không tìm thấy thông tin mượn sách $barcode trong phiếu $loanId');
+      if (barcodes.isEmpty) {
+        throw Exception('Danh sách sách trả không được rỗng');
       }
 
-      final dueDate = DateTime.tryParse(detailResponse['ngayhentra'] ?? '');
-      if (dueDate == null) {
-        throw Exception('Ngày hẹn trả không hợp lệ');
-      }
+      final soLuongTra = barcodes.length;
+      String? memberId;
+      int tongTienPhat = 0;
+      int tongDiemCong = 0;
+      final List<SupabaseReturnBookResult> results = [];
 
-      final now = DateTime.now();
-      final lateDays = now.difference(dueDate).inDays;
-      final isOverdue = lateDays > 0;
-      final fineAmount = isOverdue ? lateDays * kSupabaseFineRatePerDay : 0;
-      int pointsEarned = 0;
+      // ========== BƯỚC 1: Xử lý từng sách ==========
+      for (final barcode in barcodes) {
+        // Lấy thông tin chi tiết mượn
+        final detailResponse = await _client
+            .from(_loanDetailTable)
+            .select('*, phieu_muon(madg)')
+            .eq('mapm', loanId)
+            .eq('mavach', barcode)
+            .maybeSingle();
 
-      // 1. Update chi tiết mượn
-      await _client
-          .from(_loanDetailTable)
-          .update({
-            'ngaytrathucte': now.toIso8601String(),
-            'tinhtrangsachkhitra': bookCondition,            'tienphatphatsinh': fineAmount,
-            'trangthai': 1, // 1: Đã trả
-          })
-          .eq('mapm', loanId)
-          .eq('mavach', barcode);
+        if (detailResponse == null) {
+          throw Exception('Không tìm thấy thông tin mượn sách $barcode trong phiếu $loanId');
+        }
 
-      // 2. Update trạng thái sách về 0 (Sẵn sàng)
-      await _client
-          .from(_bookTable)
-          .update({'trangthai': 0})
-          .eq('mavach', barcode);
-
-      // 3. Nếu đúng hạn: cộng điểm
-      if (!isOverdue) {
-        pointsEarned = kSupabasePointsPerBook;
-        final memberId = (detailResponse['phieu_muon'] as Map?)?['madg'] as String?;
-        
-        if (memberId != null) {
-          // Lấy điểm hiện tại
-          final memberResponse = await _client
-              .from(_memberTable)
-              .select('diemtichluy')
-              .eq('madg', memberId.trim())
-              .maybeSingle();
-
-          if (memberResponse != null) {
-            final currentPoints = (memberResponse['diemtichluy'] as num?)?.toInt() ?? 0;
-            await _client
-                .from(_memberTable)
-                .update({'diemtichluy': currentPoints + pointsEarned})
-                .eq('madg', memberId.trim());
+        // Lấy memberId từ phiếu đầu tiên
+        if (memberId == null) {
+          memberId = (detailResponse['phieu_muon'] as Map?)?['madg'] as String?;
+          if (memberId == null) {
+            throw Exception('Không tìm thấy thông tin độc giả');
           }
         }
+
+        final dueDate = DateTime.tryParse(detailResponse['ngayhentra'] ?? '');
+        if (dueDate == null) {
+          throw Exception('Ngày hẹn trả không hợp lệ cho sách $barcode');
+        }
+
+        // Tính tiền phạt cho sách này
+        final now = DateTime.now();
+        final lateDays = now.difference(dueDate).inDays;
+        final isOverdue = lateDays > 0;
+        final fineAmount = isOverdue ? lateDays * kSupabaseFineRatePerDay : 0;
+        tongTienPhat += fineAmount;
+
+        // Cộng điểm nếu đúng hạn
+        int pointsEarned = 0;
+        if (!isOverdue) {
+          pointsEarned = kSupabasePointsPerBook;
+          tongDiemCong += pointsEarned;
+        }
+
+        // Update chi tiết mượn
+        await _client
+            .from(_loanDetailTable)
+            .update({
+              'ngaytrathucte': now.toIso8601String(),
+              'tinhtrangsachkhitra': bookCondition,
+              'tienphatphatsinh': fineAmount,
+              'trangthai': 1, // 1: Đã trả
+            })
+            .eq('mapm', loanId)
+            .eq('mavach', barcode);
+
+        // Update trạng thái sách về 0 (Sẵn sàng)
+        await _client
+            .from(_bookTable)
+            .update({'trangthai': 0})
+            .eq('mavach', barcode);
+
+        results.add(SupabaseReturnBookResult(
+          barcode: barcode,
+          isOverdue: isOverdue,
+          lateDays: lateDays > 0 ? lateDays : 0,
+          fineAmount: fineAmount,
+          pointsEarned: pointsEarned,
+          depositRefunded: 0, // Sẽ cập nhật sau
+        ));
       }
 
-      debugPrint('✅ Trả sách $barcode thành công. Quá hạn: $isOverdue, Phạt: $fineAmount VND');
+      // ========== BƯỚC 2: Lấy thông tin ví và tiền cọc ==========
+      final memberResponse = await _client
+          .from(_memberTable)
+          .select('soduvi, diemtichluy, magoi, goi_hoi_vien(tiencoc)')
+          .eq('madg', memberId!.trim())
+          .maybeSingle();
 
-      return SupabaseReturnBookResult(
-        barcode: barcode,
-        isOverdue: isOverdue,
-        lateDays: lateDays > 0 ? lateDays : 0,
-        fineAmount: fineAmount,
-        pointsEarned: pointsEarned,
-      );
+      if (memberResponse == null) {
+        throw Exception('Không tìm thấy thông tin độc giả $memberId');
+      }
+
+      final soduvi = (memberResponse['soduvi'] as num?)?.toInt() ?? 0;
+      final currentPoints = (memberResponse['diemtichluy'] as num?)?.toInt() ?? 0;
+      final goiHoiVien = memberResponse['goi_hoi_vien'] as Map<String, dynamic>?;
+      final tiencoc = (goiHoiVien?['tiencoc'] as num?)?.toInt() ?? 0;
+
+      // ========== BƯỚC 3: Tính tổng tiền hoàn cọc ==========
+      final int tongTienHoan = tiencoc * soLuongTra;
+
+      // ========== BƯỚC 4: Cập nhật số dư ví ==========
+      // Công thức: soduvi_moi = soduvi_cu + tongTienHoan - tongTienPhat
+      final newBalance = soduvi + tongTienHoan - tongTienPhat;
+      await _client
+          .from(_memberTable)
+          .update({'soduvi': newBalance})
+          .eq('madg', memberId.trim());
+
+      // ========== BƯỚC 5: Ghi log giao dịch hoàn cọc ==========
+      if (tongTienHoan > 0) {
+        await _client.from('giao_dich_vi').insert({
+          'madg': memberId.trim(),
+          'loaigiaodich': 'Hoàn tiền cọc',
+          'sotien': tongTienHoan,
+          'ngaygiaodich': DateTime.now().toIso8601String(),
+          'noidung': 'Hoàn cọc trả $soLuongTra sách (phiếu $loanId)',
+        });
+        debugPrint('💰 Đã hoàn tiền cọc: ${_formatCurrency(tongTienHoan)} VNĐ ($soLuongTra cuốn x ${_formatCurrency(tiencoc)})');
+      }
+
+      // ========== BƯỚC 6: Ghi log giao dịch phạt (nếu có) ==========
+      if (tongTienPhat > 0) {
+        await _client.from('giao_dich_vi').insert({
+          'madg': memberId.trim(),
+          'loaigiaodich': 'Phạt trễ hạn',
+          'sotien': tongTienPhat,
+          'ngaygiaodich': DateTime.now().toIso8601String(),
+          'noidung': 'Phạt trễ hạn trả $soLuongTra sách (phiếu $loanId)',
+        });
+        debugPrint('⚠️ Đã trừ tiền phạt: ${_formatCurrency(tongTienPhat)} VNĐ');
+      }
+
+      // ========== BƯỚC 7: Cộng điểm tích lũy ==========
+      if (tongDiemCong > 0) {
+        await _client
+            .from(_memberTable)
+            .update({'diemtichluy': currentPoints + tongDiemCong})
+            .eq('madg', memberId.trim());
+        debugPrint('⭐ Đã cộng $tongDiemCong điểm tích lũy');
+      }
+
+      // Cập nhật depositRefunded cho kết quả đầu tiên (hoặc chia đều)
+      final updatedResults = results.map((r) => SupabaseReturnBookResult(
+        barcode: r.barcode,
+        isOverdue: r.isOverdue,
+        lateDays: r.lateDays,
+        fineAmount: r.fineAmount,
+        pointsEarned: r.pointsEarned,
+        depositRefunded: tiencoc, // Mỗi sách hoàn 1 phần cọc
+      )).toList();
+
+      debugPrint('✅ Trả $soLuongTra sách thành công. Hoàn: ${_formatCurrency(tongTienHoan)}, Phạt: ${_formatCurrency(tongTienPhat)}');
+
+      return updatedResults;
     } catch (e) {
       debugPrint('❌ Lỗi khi trả sách: $e');
-      throw Exception('Lỗi khi trả sách: $e');
+      rethrow;
     }
   }
 

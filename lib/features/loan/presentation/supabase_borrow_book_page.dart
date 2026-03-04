@@ -441,14 +441,34 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
           ),
         );
         Navigator.of(context).pop(true);
-      }
-    } catch (e) {
+      }    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi: $e'),
-            backgroundColor: Colors.red.shade600,
-            behavior: SnackBarBehavior.floating,
+        // Lọc bỏ 'Exception: ' khỏi chuỗi lỗi để hiển thị thân thiện hơn
+        final errorMessage = e.toString().replaceAll('Exception: ', '');
+        
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red, size: 28),
+                SizedBox(width: 8),
+                Text(
+                  'Không thể mượn sách',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(errorMessage),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Đã hiểu'),
+              ),
+            ],
           ),
         );
       }
