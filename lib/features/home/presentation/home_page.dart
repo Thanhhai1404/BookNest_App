@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/supabase_auth_provider.dart';
+import '../../activity_log/presentation/supabase_activity_log_page.dart';
 import '../../book/presentation/book_list_page.dart';
 import '../../employees/presentation/supabase_employee_list_page.dart';
 import '../../loan/presentation/supabase_loan_list_page.dart';
@@ -162,8 +163,7 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),
-                  // Chỉ hiển thị nút Quản lý Nhân viên nếu là Admin
+                  ),                  // Chỉ hiển thị nút Quản lý Nhân viên nếu là Admin
                   if (currentEmployee?.isAdmin ?? false)
                     _MenuCard(
                       icon: Icons.badge_rounded,
@@ -177,6 +177,19 @@ class HomePage extends ConsumerWidget {
                         );
                       },
                     ),
+                  // Nhật ký hoạt động
+                  _MenuCard(
+                    icon: Icons.history_rounded,
+                    title: 'Nhật ký\nhoạt động',
+                    color: Colors.indigo,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SupabaseActivityLogPage(),
+                        ),
+                      );
+                    },
+                  ),
                 ]),
               ),
             ),
