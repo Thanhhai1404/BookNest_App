@@ -83,16 +83,19 @@ class SupabaseLoanViewModel extends AsyncNotifier<SupabaseLoanListState> {
   /// [memberId]: Mã độc giả
   /// [barcodes]: Danh sách mã vạch sách cần mượn
   /// [dueDate]: Ngày hẹn trả
+  /// [employeeId]: Mã nhân viên tạo phiếu (mặc định 'NV001' nếu không truyền)
   Future<String> borrowBooks({
     required String memberId,
     required List<String> barcodes,
     required DateTime dueDate,
+    String employeeId = 'NV001',
   }) async {
     final repo = ref.read(supabaseLoanRepositoryProvider);
     final loanId = await repo.createLoan(
       maDG: memberId,
       maVachList: barcodes,
       ngayHenTra: dueDate,
+      maNV: employeeId,
     );
     await refresh();
     return loanId;

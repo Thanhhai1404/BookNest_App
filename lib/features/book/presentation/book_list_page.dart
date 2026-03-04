@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/supabase_auth_provider.dart';
 import '../../../core/widgets/barcode_scanner_view.dart';
 import '../../books/data/repositories/supabase_book_repository.dart';
 import 'book_form_page.dart';
@@ -37,6 +38,8 @@ class _BookListPageState extends ConsumerState<BookListPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(bookListViewModelProvider);
     final scheme = Theme.of(context).colorScheme;
+    final currentEmployee = ref.watch(currentEmployeeProvider);
+    final isAdmin = currentEmployee?.isAdmin ?? false;
 
     // Sync controller with state when cleared externally
     if (state.query.isEmpty && _searchController.text.isNotEmpty) {
@@ -131,18 +134,21 @@ class _BookListPageState extends ConsumerState<BookListPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final saved = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (_) => const BookFormPage()),
-          );
-          if (saved == true && context.mounted) {
-            ref.read(bookListViewModelProvider.notifier).refresh();
-          }
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Thêm'),
-      ),
+      // Chỉ hiển thị FAB nếu là Admin
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final saved = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(builder: (_) => const BookFormPage()),
+                );
+                if (saved == true && context.mounted) {
+                  ref.read(bookListViewModelProvider.notifier).refresh();
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Thêm'),
+            )
+          : null,
     );
   }
 

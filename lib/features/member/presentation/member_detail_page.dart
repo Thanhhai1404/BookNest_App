@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/providers/supabase_auth_provider.dart';
 import '../../loan/data/repositories/supabase_loan_repository.dart';
 import '../../members/data/supabase_transaction_repository.dart';
 import 'member_form_page.dart';
@@ -26,6 +27,8 @@ class MemberDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final memberAsync = ref.watch(memberDetailProvider(memberId));
+    final currentEmployee = ref.watch(currentEmployeeProvider);
+    final isAdmin = currentEmployee?.isAdmin ?? false;
 
     return memberAsync.when(
       loading: () => Scaffold(
@@ -61,11 +64,13 @@ class MemberDetailPage extends ConsumerWidget {
                 },
                 icon: const Icon(Icons.edit),
               ),
-              IconButton(
-                tooltip: 'Xoá',
-                onPressed: () => _showDeleteDialog(context, ref, member),
-                icon: const Icon(Icons.delete_outline),
-              ),
+              // Chỉ hiển thị nút Xóa nếu là Admin
+              if (isAdmin)
+                IconButton(
+                  tooltip: 'Xoá',
+                  onPressed: () => _showDeleteDialog(context, ref, member),
+                  icon: const Icon(Icons.delete_outline),
+                ),
             ],
           ),
           body: ListView(

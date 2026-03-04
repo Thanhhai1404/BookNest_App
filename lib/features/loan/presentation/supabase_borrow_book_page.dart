@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/providers/supabase_auth_provider.dart';
 import 'supabase_loan_view_model.dart';
 
 /// Trang mượn sách sử dụng Supabase
@@ -418,7 +419,6 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
       ),
     );
   }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedBooks.isEmpty) return;
@@ -426,10 +426,15 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
     setState(() => _isSubmitting = true);
 
     try {
+      // Lấy mã nhân viên đang đăng nhập
+      final currentEmployee = ref.read(currentEmployeeProvider);
+      final employeeId = currentEmployee?.id ?? 'NV001';
+
       final loanId = await ref.read(supabaseLoanViewModelProvider.notifier).borrowBooks(
             memberId: _selectedMember!['madg'] as String,
             barcodes: _selectedBooks.map((b) => b.barcode).toList(),
             dueDate: _dueDate,
+            employeeId: employeeId,
           );
 
       if (mounted) {
@@ -441,7 +446,7 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
           ),
         );
         Navigator.of(context).pop(true);
-      }    } catch (e) {
+      }} catch (e) {
       if (mounted) {
         // Lọc bỏ 'Exception: ' khỏi chuỗi lỗi để hiển thị thân thiện hơn
         final errorMessage = e.toString().replaceAll('Exception: ', '');

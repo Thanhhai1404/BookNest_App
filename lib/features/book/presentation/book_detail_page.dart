@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/supabase_auth_provider.dart';
 import '../../../data/db/app_database.dart';
 import '../../loan/presentation/loan_view_model.dart';
 import 'book_detail_view_model.dart';
@@ -34,54 +35,58 @@ class BookDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(bookDetailViewModelProvider(bookId));
+    final currentEmployee = ref.watch(currentEmployeeProvider);
+    final isAdmin = currentEmployee?.isAdmin ?? false;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Chi tiết $bookId'),
         actions: [
-          IconButton(
-            tooltip: 'Xóa sách',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () async {
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Xóa sách?'),
-                  content: const Text(
-                    'Bạn có chắc chắn muốn xóa sách này và toàn bộ bản sao không? Hành động này không thể hoàn tác.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Hủy'),
+          // Chỉ hiển thị nút Xóa nếu là Admin
+          if (isAdmin)
+            IconButton(
+              tooltip: 'Xóa sách',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () async {
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Xóa sách?'),
+                    content: const Text(
+                      'Bạn có chắc chắn muốn xóa sách này và toàn bộ bản sao không? Hành động này không thể hoàn tác.',
                     ),
-                    FilledButton.tonal(
-                      style: FilledButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: Colors.red,
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Hủy'),
                       ),
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Xóa'),
-                    ),
-                  ],
-                ),
-              );
-              if (ok != true) return;
-
-              final notifier =
-                  ref.read(bookDetailViewModelProvider(bookId).notifier);
-              try {
-                await notifier.deleteBook();
-                if (!context.mounted) return;
-                Navigator.of(context).pop(true);
-              } catch (e) {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Xóa sách thất bại: $e')),
+                      FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.red,
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Xóa'),
+                      ),
+                    ],
+                  ),
                 );
-              }
-            },
-          ),
+                if (ok != true) return;
+
+                final notifier =
+                    ref.read(bookDetailViewModelProvider(bookId).notifier);
+                try {
+                  await notifier.deleteBook();
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop(true);
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Xóa sách thất bại: $e')),
+                  );
+                }
+              },
+            ),
         ],
       ),
       body: stateAsync.when(

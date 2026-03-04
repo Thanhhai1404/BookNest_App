@@ -50,6 +50,20 @@ class SupabaseEmployee {
 
   /// Tên hiển thị ngắn (tên + họ)
   String get displayName => firstName ?? lastName ?? id;
+
+  /// Kiểm tra xem nhân viên có phải là Admin (Quản lý) không
+  bool get isAdmin {
+    if (position == null) return false;
+    final pos = position!.toLowerCase();
+    return pos == 'quản lý' || pos == 'quan ly' || pos == 'manager' || pos == 'admin';
+  }
+
+  /// Kiểm tra xem nhân viên có phải là Thủ thư không
+  bool get isLibrarian {
+    if (position == null) return false;
+    final pos = position!.toLowerCase();
+    return pos == 'thủ thư' || pos == 'thu thu' || pos == 'librarian';
+  }
 }
 
 /// Repository để quản lý nhân viên từ Supabase

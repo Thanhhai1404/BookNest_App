@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../auth/presentation/login_view_model.dart';
+import '../../../core/providers/supabase_auth_provider.dart';
 import '../../book/presentation/book_list_page.dart';
 import '../../employees/presentation/supabase_employee_list_page.dart';
 import '../../loan/presentation/supabase_loan_list_page.dart';
@@ -15,6 +15,8 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final stateAsync = ref.watch(supabaseDashboardStatsProvider);
+    final currentEmployee = ref.watch(currentEmployeeProvider);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('BookNest'),
@@ -47,7 +49,7 @@ class HomePage extends ConsumerWidget {
                   children: [
                     // Header greeting
                     Text(
-                      'Xin chào! 👋',
+                      'Xin chào${currentEmployee != null ? ', ${currentEmployee.displayName}' : ''}! 👋',
                       style:
                           Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.w700,
@@ -55,7 +57,9 @@ class HomePage extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Chào mừng đến với BookNest',
+                      currentEmployee != null
+                          ? '${currentEmployee.position ?? 'Nhân viên'} • ${currentEmployee.id}'
+                          : 'Chào mừng đến với BookNest',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
@@ -159,18 +163,20 @@ class HomePage extends ConsumerWidget {
                       );
                     },
                   ),
-                  _MenuCard(
-                    icon: Icons.badge_rounded,
-                    title: 'Quản lý\nNhân viên',
-                    color: Colors.teal,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SupabaseEmployeeListPage(),
-                        ),
-                      );
-                    },
-                  ),
+                  // Chỉ hiển thị nút Quản lý Nhân viên nếu là Admin
+                  if (currentEmployee?.isAdmin ?? false)
+                    _MenuCard(
+                      icon: Icons.badge_rounded,
+                      title: 'Quản lý\nNhân viên',
+                      color: Colors.teal,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SupabaseEmployeeListPage(),
+                          ),
+                        );
+                      },
+                    ),
                 ]),
               ),
             ),
@@ -376,11 +382,17 @@ class _MenuCard extends StatelessWidget {
 
 /// Show logout confirmation dialog.
 void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+  final currentEmployee = ref.read(currentEmployeeProvider);
+  
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Đăng xuất'),
-      content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+      content: Text(
+        currentEmployee != null
+            ? 'Bạn đang đăng nhập với tài khoản "${currentEmployee.fullName}".\n\nBạn có chắc chắn muốn đăng xuất?'
+            : 'Bạn có chắc chắn muốn đăng xuất?',
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(),
@@ -389,7 +401,7 @@ void _showLogoutDialog(BuildContext context, WidgetRef ref) {
         FilledButton(
           onPressed: () {
             Navigator.of(ctx).pop();
-            ref.read(loginViewModelProvider.notifier).logout();
+            ref.read(authProvider.notifier).logout();
           },
           child: const Text('Đăng xuất'),
         ),
