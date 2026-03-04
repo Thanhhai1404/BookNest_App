@@ -168,6 +168,82 @@ class SupabaseEmployeeRepository {
       throw Exception('Lỗi khi đếm nhân viên: $e');
     }
   }
+
+  /// Sinh mã nhân viên tự động (VD: NV001, NV002, ...)
+  Future<String> generateEmployeeId() async {
+    try {
+      final response = await _client
+          .from(_tableName)
+          .select('manv')
+          .order('manv', ascending: false)
+          .limit(1);
+
+      if ((response as List).isEmpty) {
+        return 'NV001';
+      }
+
+      final lastId = response[0]['manv'] as String;
+      // Extract số từ mã (VD: NV001 -> 1)
+      final match = RegExp(r'NV(\d+)').firstMatch(lastId);
+      if (match != null) {
+        final nextNum = int.parse(match.group(1)!) + 1;
+        return 'NV${nextNum.toString().padLeft(3, '0')}';
+      }
+
+      // Nếu không parse được, dựa vào count
+      final count = await countEmployees();
+      return 'NV${(count + 1).toString().padLeft(3, '0')}';
+    } catch (e) {
+      // Fallback: dùng timestamp
+      return 'NV${DateTime.now().millisecondsSinceEpoch % 100000}';
+    }
+  }
+
+  /// Tạo nhân viên mới từ model SupabaseEmployee (kèm mật khẩu)
+  Future<SupabaseEmployee> createEmployeeFromModel(
+    SupabaseEmployee employee, {
+    String? password,
+  }) async {
+    return createEmployee(
+      id: employee.id,
+      lastName: employee.lastName,
+      firstName: employee.firstName,
+      position: employee.position,
+      username: employee.username,
+      password: password,
+    );
+  }
+
+  /// Cập nhật nhân viên từ model SupabaseEmployee (kèm mật khẩu nếu cần)
+  Future<SupabaseEmployee> updateEmployeeFromModel(
+    SupabaseEmployee employee, {
+    String? newPassword,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'honv': employee.lastName,
+        'tennv': employee.firstName,
+        'chucvu': employee.position,
+        'taikhoan': employee.username,
+      };
+
+      // Chỉ cập nhật mật khẩu nếu được cung cấp
+      if (newPassword != null && newPassword.isNotEmpty) {
+        data['matkhau'] = newPassword;
+      }
+
+      final response = await _client
+          .from(_tableName)
+          .update(data)
+          .eq('manv', employee.id)
+          .select('manv, honv, tennv, chucvu, taikhoan')
+          .single();
+
+      return SupabaseEmployee.fromJson(response);
+    } catch (e) {
+      throw Exception('Lỗi khi cập nhật nhân viên: $e');
+    }
+  }
 }
 
 /// Provider cho SupabaseEmployeeRepository
@@ -181,4 +257,10 @@ final employeesSupabaseProvider =
     FutureProvider.autoDispose<List<SupabaseEmployee>>((ref) async {
   final repository = ref.watch(supabaseEmployeeRepositoryProvider);
   return repository.getAllEmployees();
+});
+
+/// Provider để sinh mã nhân viên tự động
+final generateEmployeeIdProvider = FutureProvider.autoDispose<String>((ref) async {
+  final repository = ref.watch(supabaseEmployeeRepositoryProvider);
+  return repository.generateEmployeeId();
 });

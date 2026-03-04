@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/supabase_employee_repository.dart';
+import 'supabase_employee_form_page.dart';
 
 /// Trang danh sách nhân viên sử dụng Supabase
 class SupabaseEmployeeListPage extends ConsumerWidget {
@@ -22,6 +23,20 @@ class SupabaseEmployeeListPage extends ConsumerWidget {
             icon: const Icon(Icons.refresh),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final result = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => const SupabaseEmployeeFormPage(),
+            ),
+          );
+          if (result == true) {
+            ref.invalidate(employeesSupabaseProvider);
+          }
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Thêm NV'),
       ),
       body: employeesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -73,7 +88,7 @@ class SupabaseEmployeeListPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Thêm nhân viên để bắt đầu quản lý',
+                    'Bấm nút + để thêm nhân viên mới',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: scheme.outline,
                         ),
@@ -84,23 +99,137 @@ class SupabaseEmployeeListPage extends ConsumerWidget {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.only(top: 8, bottom: 80),
             itemCount: employees.length,
             itemBuilder: (context, index) {
               final employee = employees[index];
-              return _EmployeeTile(employee: employee);
+              return _EmployeeTile(
+                employee: employee,
+                onEdit: () => _navigateToEdit(context, ref, employee),
+                onDelete: () => _confirmDelete(context, ref, employee),
+              );
             },
           );
         },
       ),
     );
   }
+
+  void _navigateToEdit(
+    BuildContext context,
+    WidgetRef ref,
+    SupabaseEmployee employee,
+  ) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SupabaseEmployeeFormPage(employee: employee),
+      ),
+    );
+    if (result == true) {
+      ref.invalidate(employeesSupabaseProvider);
+    }
+  }
+
+  void _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    SupabaseEmployee employee,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 8),
+            Text('Xác nhận xóa'),
+          ],
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa nhân viên "${employee.fullName}" (${employee.id})?\n\nHành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _deleteEmployee(context, ref, employee);
+            },
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteEmployee(
+    BuildContext context,
+    WidgetRef ref,
+    SupabaseEmployee employee,
+  ) async {
+    try {
+      final repository = ref.read(supabaseEmployeeRepositoryProvider);
+      await repository.deleteEmployee(employee.id);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã xóa nhân viên ${employee.fullName}'),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        ref.invalidate(employeesSupabaseProvider);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        final errorMessage = e.toString().replaceAll('Exception: ', '');
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red.shade600, size: 28),
+                const SizedBox(width: 8),
+                Text(
+                  'Lỗi xóa nhân viên',
+                  style: TextStyle(
+                    color: Colors.red.shade600,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(errorMessage),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
 }
 
 class _EmployeeTile extends StatelessWidget {
-  const _EmployeeTile({required this.employee});
+  const _EmployeeTile({
+    required this.employee,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final SupabaseEmployee employee;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -158,6 +287,22 @@ class _EmployeeTile extends StatelessWidget {
                   employee.position ?? 'Chưa xác định',
                   style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    employee.id,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontFamily: 'monospace',
+                          fontSize: 10,
+                        ),
+                  ),
+                ),
               ],
             ),
             if (employee.username != null && employee.username!.isNotEmpty) ...[
@@ -178,19 +323,20 @@ class _EmployeeTile extends StatelessWidget {
             ],
           ],
         ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            employee.id,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontFamily: 'monospace',
-                ),
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Sửa',
+              icon: Icon(Icons.edit_outlined, color: scheme.primary),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              tooltip: 'Xóa',
+              icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+              onPressed: onDelete,
+            ),
+          ],
         ),
         onTap: () {
           // TODO: Navigate to employee detail page
