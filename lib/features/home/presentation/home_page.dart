@@ -3,19 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/presentation/login_view_model.dart';
 import '../../book/presentation/book_list_page.dart';
-import '../../loan/presentation/fine_list_page.dart';
+import '../../employees/presentation/supabase_employee_list_page.dart';
 import '../../loan/presentation/supabase_loan_list_page.dart';
 import '../../member/presentation/member_list_page.dart';
 import '../../settings/presentation/backup_restore_page.dart';
-import 'home_view_model.dart';
+import '../data/supabase_dashboard_repository.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final stateAsync = ref.watch(homeViewModelProvider);
+    final stateAsync = ref.watch(supabaseDashboardStatsProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('BookNest'),
@@ -63,68 +62,28 @@ class HomePage extends ConsumerWidget {
                     ),
                     const SizedBox(height: 24), // Stats cards row
                     stateAsync.when(
-                      loading: () => Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.menu_book_rounded,
-                              label: 'Tổng sách',
-                              value: '...',
-                              color: scheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.people_rounded,
-                              label: 'Hội viên',
-                              value: '...',
-                              color: scheme.tertiary,
-                            ),
-                          ),
-                        ],
+                      loading: () => _buildStatsGrid(
+                        context: context,
+                        totalBooks: '...',
+                        totalMembers: '...',
+                        borrowedBooks: '...',
+                        overdueLoans: '...',
+                        isLoading: true,
                       ),
-                      error: (e, _) => Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.menu_book_rounded,
-                              label: 'Tổng sách',
-                              value: '!',
-                              color: scheme.error,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.people_rounded,
-                              label: 'Hội viên',
-                              value: '!',
-                              color: scheme.error,
-                            ),
-                          ),
-                        ],
+                      error: (e, _) => _buildStatsGrid(
+                        context: context,
+                        totalBooks: '!',
+                        totalMembers: '!',
+                        borrowedBooks: '!',
+                        overdueLoans: '!',
+                        isError: true,
                       ),
-                      data: (state) => Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.menu_book_rounded,
-                              label: 'Tổng sách',
-                              value: state.bookCopyCount.toString(),
-                              color: scheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _StatCard(
-                              icon: Icons.people_rounded,
-                              label: 'Hội viên',
-                              value: state.memberCount.toString(),
-                              color: scheme.tertiary,
-                            ),
-                          ),
-                        ],
+                      data: (stats) => _buildStatsGrid(
+                        context: context,
+                        totalBooks: stats.totalBooks.toString(),
+                        totalMembers: stats.totalMembers.toString(),
+                        borrowedBooks: stats.borrowedBooks.toString(),
+                        overdueLoans: stats.overdueLoans.toString(),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -201,13 +160,13 @@ class HomePage extends ConsumerWidget {
                     },
                   ),
                   _MenuCard(
-                    icon: Icons.receipt_long_rounded,
-                    title: 'Thu\nPhạt',
-                    color: Colors.red.shade600,
+                    icon: Icons.badge_rounded,
+                    title: 'Quản lý\nNhân viên',
+                    color: Colors.teal,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const FineListPage(),
+                          builder: (_) => const SupabaseEmployeeListPage(),
                         ),
                       );
                     },
@@ -222,6 +181,75 @@ class HomePage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Build a 2x2 grid of stats cards
+Widget _buildStatsGrid({
+  required BuildContext context,
+  required String totalBooks,
+  required String totalMembers,
+  required String borrowedBooks,
+  required String overdueLoans,
+  bool isLoading = false,
+  bool isError = false,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  
+  // Colors for each card
+  final Color booksColor = isError ? scheme.error : Colors.amber.shade700;
+  final Color membersColor = isError ? scheme.error : Colors.blue;
+  final Color borrowedColor = isError ? scheme.error : Colors.teal;
+  final Color overdueColor = isError ? scheme.error : Colors.red.shade600;
+
+  return Column(
+    children: [
+      // Row 1: Total Books + Members
+      Row(
+        children: [
+          Expanded(
+            child: _StatCard(
+              icon: Icons.menu_book_rounded,
+              label: 'Tổng sách',
+              value: totalBooks,
+              color: booksColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StatCard(
+              icon: Icons.people_rounded,
+              label: 'Hội viên',
+              value: totalMembers,
+              color: membersColor,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      // Row 2: Borrowed Books + Overdue Loans
+      Row(
+        children: [
+          Expanded(
+            child: _StatCard(
+              icon: Icons.bookmark_added_rounded,
+              label: 'Đang mượn',
+              value: borrowedBooks,
+              color: borrowedColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StatCard(
+              icon: Icons.warning_amber_rounded,
+              label: 'Quá hạn',
+              value: overdueLoans,
+              color: overdueColor,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
 }
 
 class _StatCard extends StatelessWidget {
