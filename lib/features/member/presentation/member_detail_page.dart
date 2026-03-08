@@ -139,7 +139,6 @@ class MemberDetailPage extends ConsumerWidget {
     await ref.read(memberListControllerProvider.notifier).delete(member.id);
     if (context.mounted) Navigator.of(context).pop();
   }
-
   Future<void> _showTopUpDialog(
       BuildContext context, WidgetRef ref, SupabaseMember member) async {
     final result = await showDialog<int>(
@@ -147,7 +146,13 @@ class MemberDetailPage extends ConsumerWidget {
       builder: (ctx) => _TopUpDialog(member: member),
     );
     if (result != null && result > 0) {
-      try {        await ref.read(supabaseMemberRepositoryProvider).topUpWallet(member.id, result);
+      try {
+        final currentEmployee = ref.read(currentEmployeeProvider);
+        await ref.read(supabaseMemberRepositoryProvider).topUpWallet(
+          member.id, 
+          result,
+          employeeId: currentEmployee?.id,
+        );
         // Refresh data
         ref.invalidate(memberDetailProvider(memberId));
         ref.invalidate(memberTransactionsSupabaseProvider(memberId));

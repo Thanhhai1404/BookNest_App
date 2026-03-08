@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/supabase_auth_provider.dart';
 import '../../members/data/member_repository.dart';
 
 // Re-export providers for backward compatibility
@@ -124,8 +125,7 @@ class MemberListController extends StateNotifier<MemberListState> {
     final repo = ref.read(supabaseMemberRepositoryProvider);
     await repo.deleteMember(id);
     await _loadMembers();
-  }
-  /// Thêm hội viên mới
+  }  /// Thêm hội viên mới
   /// [avatarFile] - File avatar (optional), sẽ được upload lên Storage
   Future<void> addMember({
     required String id,
@@ -142,6 +142,7 @@ class MemberListController extends StateNotifier<MemberListState> {
     File? avatarFile,
   }) async {
     final repo = ref.read(supabaseMemberRepositoryProvider);
+    final currentEmployee = ref.read(currentEmployeeProvider);
     await repo.addMember(
       id: id,
       lastName: lastName,
@@ -155,6 +156,7 @@ class MemberListController extends StateNotifier<MemberListState> {
       packageId: packageId,
       avatarUrl: avatarUrl,
       avatarFile: avatarFile,
+      employeeId: currentEmployee?.id,
     );
     await _loadMembers();
   }

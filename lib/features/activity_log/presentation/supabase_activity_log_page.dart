@@ -305,46 +305,48 @@ class SupabaseActivityLogPage extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Text(
-                    'Lọc theo loại',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Lọc theo loại',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  if (currentModule != null)
-                    TextButton(
-                      onPressed: () {
-                        ref.read(activityLogModuleFilterProvider.notifier).state = null;
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Xóa lọc'),
-                    ),
-                ],
+                    const Spacer(),
+                    if (currentModule != null)
+                      TextButton(
+                        onPressed: () {
+                          ref.read(activityLogModuleFilterProvider.notifier).state = null;
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Xóa lọc'),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1),
-            ...modules.map((module) => ListTile(
-              leading: Text(module.$3, style: const TextStyle(fontSize: 24)),
-              title: Text(module.$2),
-              trailing: currentModule == module.$1
-                  ? const Icon(Icons.check_rounded, color: Colors.green)
-                  : null,
-              onTap: () {
-                ref.read(activityLogModuleFilterProvider.notifier).state = module.$1;
-                Navigator.pop(context);
-              },
-            )),
-            const SizedBox(height: 16),
-          ],
+              const Divider(height: 1),
+              ...modules.map((module) => ListTile(
+                leading: Text(module.$3, style: const TextStyle(fontSize: 24)),
+                title: Text(module.$2),
+                trailing: currentModule == module.$1
+                    ? const Icon(Icons.check_rounded, color: Colors.green)
+                    : null,
+                onTap: () {
+                  ref.read(activityLogModuleFilterProvider.notifier).state = module.$1;
+                  Navigator.pop(context);
+                },
+              )),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );

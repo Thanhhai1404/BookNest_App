@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path/path.dart' as path;
 
+import '../../activity_log/data/supabase_activity_log_repository.dart';
 import 'package_repository.dart';
 
 /// Model cho Hội viên (Độc giả) từ Supabase
@@ -255,6 +256,7 @@ class SupabaseMemberRepository {
   }
   /// Thêm hội viên mới
   /// [avatarFile] - File avatar (optional), sẽ được upload lên Storage
+  /// [employeeId] - Mã nhân viên thực hiện (optional, để ghi log)
   Future<SupabaseMember> addMember({
     required String id,
     String? lastName,
@@ -272,6 +274,7 @@ class SupabaseMemberRepository {
     required String packageId,
     String? avatarUrl,
     File? avatarFile,
+    String? employeeId,
   }) async {
     try {
       // Upload avatar nếu có file
@@ -300,7 +303,23 @@ class SupabaseMemberRepository {
           .select(_selectWithJoins)
           .single();
 
-      return SupabaseMember.fromJson(response);
+      final newMember = SupabaseMember.fromJson(response);
+
+      // Ghi log nhật ký hoạt động
+      final activityLogRepo = SupabaseActivityLogRepository(_client);
+      final fullName = [lastName, middleName, firstName]
+          .where((e) => (e ?? '').isNotEmpty)
+          .join(' ');
+      await activityLogRepo.addLog(
+        module: ActivityModule.hoiVien,
+        actionType: 'Thêm hội viên',
+        content: 'Thêm hội viên mới: $id${fullName.isNotEmpty ? ' - $fullName' : ''}.',
+        employeeId: employeeId,
+        memberId: id.trim(),
+        referenceId: id,
+      );
+
+      return newMember;
     } catch (e) {
       throw Exception('Lỗi khi thêm hội viên: $e');
     }
@@ -380,7 +399,14 @@ class SupabaseMemberRepository {
   /// Nạp tiền vào ví
   /// Bước 1: Lấy số dư hiện tại và cộng thêm amount, update vào bảng doc_gia
   /// Bước 2: Insert một dòng vào bảng giao_dich_vi
-  Future<SupabaseMember> topUpWallet(String memberId, int amount) async {
+  /// Bước 3: Ghi log nhật ký hoạt động
+  /// 
+  /// [employeeId]: Mã nhân viên thực hiện (optional, để ghi log)
+  Future<SupabaseMember> topUpWallet(
+    String memberId, 
+    int amount, {
+    String? employeeId,
+  }) async {
     if (amount <= 0) {
       throw ArgumentError('Số tiền phải là số dương');
     }
@@ -406,10 +432,28 @@ class SupabaseMemberRepository {
         'noidung': 'Nạp tiền vào ví',
       });
 
+      // Bước 3: Ghi log nhật ký hoạt động
+      final activityLogRepo = SupabaseActivityLogRepository(_client);
+      await activityLogRepo.addLog(
+        module: ActivityModule.viTien,
+        actionType: 'Nạp tiền ví',
+        content: 'Nạp ${_formatCurrency(amount)} VNĐ vào ví của độc giả $memberId.',
+        employeeId: employeeId,
+        memberId: memberId.trim(),
+      );
+
       return updatedMember;
     } catch (e) {
       throw Exception('Lỗi khi nạp tiền: $e');
     }
+  }
+  
+  /// Helper format tiền tệ
+  String _formatCurrency(int amount) {
+    return amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.',
+    );
   }
   /// Trừ tiền từ ví
   /// Bước 1: Kiểm tra số dư và trừ tiền, update vào bảng doc_gia

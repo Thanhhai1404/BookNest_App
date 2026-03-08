@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../activity_log/data/supabase_activity_log_repository.dart';
+
 /// Fine rate: VND per overdue day.
 const int kSupabaseFineRatePerDay = 2000;
 
@@ -386,10 +388,19 @@ class SupabaseLoanRepository {
           'sotien': tongTienCoc,
           'ngaygiaodich': DateTime.now().toIso8601String(),
           'noidung': 'Cọc mượn ${maVachList.length} sách phiếu $mapm',
-        });
-
-        debugPrint('💰 Đã trừ tiền cọc: ${_formatCurrency(tongTienCoc)} VNĐ (${maVachList.length} cuốn x ${_formatCurrency(tiencoc)})');
+        });        debugPrint('💰 Đã trừ tiền cọc: ${_formatCurrency(tongTienCoc)} VNĐ (${maVachList.length} cuốn x ${_formatCurrency(tiencoc)})');
       }
+
+      // ========== BƯỚC 11: Ghi log nhật ký hoạt động ==========
+      final activityLogRepo = SupabaseActivityLogRepository(_client);
+      await activityLogRepo.addLog(
+        module: ActivityModule.muonTra,
+        actionType: 'Tạo phiếu mượn',
+        content: 'Tạo phiếu mượn $mapm cho độc giả $maDG, mượn ${maVachList.length} cuốn sách.',
+        employeeId: maNV.trim(),
+        memberId: maDG.trim(),
+        referenceId: mapm,
+      );
 
       debugPrint('✅ Tạo phiếu mượn thành công: $mapm với ${maVachList.length} sách');
       return mapm;
@@ -762,9 +773,7 @@ class SupabaseLoanRepository {
             .update({'diemtichluy': currentPoints + tongDiemCong})
             .eq('madg', memberId.trim());
         debugPrint('⭐ Đã cộng $tongDiemCong điểm tích lũy');
-      }
-
-      // Cập nhật depositRefunded cho kết quả đầu tiên (hoặc chia đều)
+      }      // Cập nhật depositRefunded cho kết quả đầu tiên (hoặc chia đều)
       final updatedResults = results.map((r) => SupabaseReturnBookResult(
         barcode: r.barcode,
         isOverdue: r.isOverdue,
@@ -773,6 +782,17 @@ class SupabaseLoanRepository {
         pointsEarned: r.pointsEarned,
         depositRefunded: tiencoc, // Mỗi sách hoàn 1 phần cọc
       )).toList();
+
+      // ========== BƯỚC 8: Ghi log nhật ký hoạt động ==========
+      final activityLogRepo = SupabaseActivityLogRepository(_client);
+      final barcodeListStr = barcodes.join(', ');
+      await activityLogRepo.addLog(
+        module: ActivityModule.muonTra,
+        actionType: 'Nhận trả sách',
+        content: 'Nhận trả $soLuongTra sách ($barcodeListStr) từ phiếu $loanId. Hoàn cọc ${_formatCurrency(tongTienHoan)} VNĐ${tongTienPhat > 0 ? ', phạt ${_formatCurrency(tongTienPhat)} VNĐ' : ''}.',
+        memberId: memberId.trim(),
+        referenceId: loanId,
+      );
 
       debugPrint('✅ Trả $soLuongTra sách thành công. Hoàn: ${_formatCurrency(tongTienHoan)}, Phạt: ${_formatCurrency(tongTienPhat)}');
 
