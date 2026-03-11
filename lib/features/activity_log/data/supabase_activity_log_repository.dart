@@ -24,7 +24,7 @@ class ActivityLog {
   final String? memberId; // madg (độc giả liên quan)
   final String? referenceId; // thamchieu_id (mã tham chiếu)
   final DateTime createdAt; // thoigian
-  
+
   // Join data
   final String? employeeName; // Từ join nhan_vien
   final String? memberName; // Từ join doc_gia
@@ -72,7 +72,8 @@ class ActivityLog {
       content: (json['noidung'] as String?) ?? '',
       memberId: (json['madg'] as String?)?.trim(),
       referenceId: (json['thamchieu_id'] as String?)?.trim(),
-      createdAt: DateTime.tryParse(json['thoigian']?.toString() ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['thoigian']?.toString() ?? '') ??
+          DateTime.now(),
       employeeName: empName,
       memberName: memName,
     );
@@ -152,9 +153,7 @@ class SupabaseActivityLogRepository {
     int limit = 100,
   }) async {
     try {
-      var query = _client
-          .from('nhat_ky_hoat_dong')
-          .select('''
+      var query = _client.from('nhat_ky_hoat_dong').select('''
             id,
             manv,
             module,
@@ -169,9 +168,10 @@ class SupabaseActivityLogRepository {
 
       // Filter theo ngày nếu có
       if (filterDate != null) {
-        final startOfDay = DateTime(filterDate.year, filterDate.month, filterDate.day);
+        final startOfDay =
+            DateTime(filterDate.year, filterDate.month, filterDate.day);
         final endOfDay = startOfDay.add(const Duration(days: 1));
-        
+
         query = query
             .gte('thoigian', startOfDay.toIso8601String())
             .lt('thoigian', endOfDay.toIso8601String());
@@ -182,9 +182,8 @@ class SupabaseActivityLogRepository {
         query = query.eq('module', filterModule);
       }
 
-      final response = await query
-          .order('thoigian', ascending: false)
-          .limit(limit);
+      final response =
+          await query.order('thoigian', ascending: false).limit(limit);
 
       return (response as List)
           .map((json) => ActivityLog.fromJson(json as Map<String, dynamic>))
@@ -232,7 +231,8 @@ final _supabaseClientProvider = Provider<SupabaseClient>((ref) {
 });
 
 /// Provider cho ActivityLogRepository
-final activityLogRepositoryProvider = Provider<SupabaseActivityLogRepository>((ref) {
+final activityLogRepositoryProvider =
+    Provider<SupabaseActivityLogRepository>((ref) {
   final client = ref.watch(_supabaseClientProvider);
   return SupabaseActivityLogRepository(client);
 });
@@ -248,7 +248,7 @@ final activityLogsProvider = FutureProvider<List<ActivityLog>>((ref) async {
   final repository = ref.watch(activityLogRepositoryProvider);
   final filterDate = ref.watch(activityLogDateFilterProvider);
   final filterModule = ref.watch(activityLogModuleFilterProvider);
-  
+
   return repository.getActivityLogs(
     filterDate: filterDate,
     filterModule: filterModule,
@@ -256,18 +256,19 @@ final activityLogsProvider = FutureProvider<List<ActivityLog>>((ref) async {
 });
 
 /// Provider để nhóm logs theo ngày (dd/MM/yyyy)
-final groupedActivityLogsProvider = Provider<Map<String, List<ActivityLog>>>((ref) {
+final groupedActivityLogsProvider =
+    Provider<Map<String, List<ActivityLog>>>((ref) {
   final logsAsync = ref.watch(activityLogsProvider);
-  
+
   return logsAsync.when(
     data: (logs) {
       final Map<String, List<ActivityLog>> grouped = {};
-      
+
       for (final log in logs) {
         final dateKey = _formatDateKey(log.createdAt);
         grouped.putIfAbsent(dateKey, () => []).add(log);
       }
-      
+
       return grouped;
     },
     loading: () => {},

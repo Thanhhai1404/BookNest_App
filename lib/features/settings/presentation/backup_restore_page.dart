@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../data/repositories/backup_repository.dart';
 
 /// Provider for database info
-final databaseInfoProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
+final databaseInfoProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   return ref.watch(backupRepositoryProvider).getDatabaseInfo();
 });
 
@@ -52,20 +54,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   children: [
                     _InfoRow(
                       label: 'Trạng thái',
-                      value: info['exists'] == true ? 'Hoạt động' : 'Không tìm thấy',
-                      valueColor: info['exists'] == true ? Colors.green : Colors.red,
+                      value: info['exists'] == true
+                          ? 'Hoạt động'
+                          : 'Không tìm thấy',
+                      valueColor:
+                          info['exists'] == true ? Colors.green : Colors.red,
                     ),
                     if (info['exists'] == true) ...[
                       const Divider(height: 16),
                       _InfoRow(
                         label: 'Dung lượng',
-                        value: BackupRepository.formatFileSize(info['size'] ?? 0),
+                        value:
+                            BackupRepository.formatFileSize(info['size'] ?? 0),
                       ),
                       const Divider(height: 16),
                       _InfoRow(
                         label: 'Cập nhật lần cuối',
                         value: info['lastModified'] != null
-                            ? DateFormat('dd/MM/yyyy HH:mm').format(info['lastModified'])
+                            ? DateFormat('dd/MM/yyyy HH:mm')
+                                .format(info['lastModified'])
                             : '-',
                       ),
                     ],
@@ -113,18 +120,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         ),
                   onTap: _isBackingUp ? null : _performBackup,
                 ),
-                const Divider(height: 1),
-                // Restore button
+                const Divider(height: 1), // Restore button
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade100,
+                      color: AppTheme.warningColor.withAlpha(50),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       Icons.cloud_download,
-                      color: Colors.orange.shade700,
+                      color: AppTheme.warningColor,
                     ),
                   ),
                   title: const Text('Khôi phục dữ liệu'),
@@ -144,26 +150,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Warning note
+          const SizedBox(height: 16), // Warning note
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.amber.shade50,
+              color: AppTheme.warningColor.withAlpha(25),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.amber.shade200),
+              border: Border.all(color: AppTheme.warningColor.withAlpha(100)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline, color: Colors.amber.shade700, size: 20),
+                Icon(Icons.info_outline,
+                    color: AppTheme.warningColor, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Khuyến nghị: Sao lưu dữ liệu định kỳ mỗi ngày để tránh mất dữ liệu quan trọng.',
                     style: TextStyle(
-                      color: Colors.amber.shade900,
+                      color: AppTheme.warningColor,
                       fontSize: 13,
                     ),
                   ),
@@ -530,4 +535,3 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
-

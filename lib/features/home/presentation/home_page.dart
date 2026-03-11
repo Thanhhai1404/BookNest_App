@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/supabase_auth_provider.dart';
 import '../../activity_log/data/supabase_activity_log_repository.dart';
 import '../../activity_log/presentation/supabase_activity_log_page.dart';
@@ -18,7 +19,7 @@ class HomePage extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final stateAsync = ref.watch(supabaseDashboardStatsProvider);
     final currentEmployee = ref.watch(currentEmployeeProvider);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('BookNest'),
@@ -133,7 +134,7 @@ class HomePage extends ConsumerWidget {
                   _MenuCard(
                     icon: Icons.library_books_rounded,
                     title: 'Quản lý\nSách',
-                    color: Colors.amber.shade700,
+                    color: AppTheme.warningColor,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -141,7 +142,8 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),                  _MenuCard(
+                  ),
+                  _MenuCard(
                     icon: Icons.output_rounded,
                     title: 'Mượn\nSách',
                     color: Colors.green,
@@ -164,7 +166,7 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     },
-                  ),                  // Chỉ hiển thị nút Quản lý Nhân viên nếu là Admin
+                  ), // Chỉ hiển thị nút Quản lý Nhân viên nếu là Admin
                   if (currentEmployee?.isAdmin ?? false)
                     _MenuCard(
                       icon: Icons.badge_rounded,
@@ -216,12 +218,11 @@ Widget _buildStatsGrid({
   bool isError = false,
 }) {
   final scheme = Theme.of(context).colorScheme;
-  
   // Colors for each card
-  final Color booksColor = isError ? scheme.error : Colors.amber.shade700;
-  final Color membersColor = isError ? scheme.error : Colors.blue;
-  final Color borrowedColor = isError ? scheme.error : Colors.teal;
-  final Color overdueColor = isError ? scheme.error : Colors.red.shade600;
+  final Color booksColor = isError ? scheme.error : AppTheme.warningColor;
+  final Color membersColor = isError ? scheme.error : AppTheme.primaryColor;
+  final Color borrowedColor = isError ? scheme.error : AppTheme.successColor;
+  final Color overdueColor = isError ? scheme.error : AppTheme.errorColor;
 
   return Column(
     children: [
@@ -399,7 +400,7 @@ class _MenuCard extends StatelessWidget {
 /// Show logout confirmation dialog.
 void _showLogoutDialog(BuildContext context, WidgetRef ref) {
   final currentEmployee = ref.read(currentEmployeeProvider);
-  
+
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(

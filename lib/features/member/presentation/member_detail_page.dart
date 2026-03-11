@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/supabase_auth_provider.dart';
 import '../../loan/data/repositories/supabase_loan_repository.dart';
 import '../../members/data/supabase_transaction_repository.dart';
@@ -139,6 +140,7 @@ class MemberDetailPage extends ConsumerWidget {
     await ref.read(memberListControllerProvider.notifier).delete(member.id);
     if (context.mounted) Navigator.of(context).pop();
   }
+
   Future<void> _showTopUpDialog(
       BuildContext context, WidgetRef ref, SupabaseMember member) async {
     final result = await showDialog<int>(
@@ -149,10 +151,10 @@ class MemberDetailPage extends ConsumerWidget {
       try {
         final currentEmployee = ref.read(currentEmployeeProvider);
         await ref.read(supabaseMemberRepositoryProvider).topUpWallet(
-          member.id, 
-          result,
-          employeeId: currentEmployee?.id,
-        );
+              member.id,
+              result,
+              employeeId: currentEmployee?.id,
+            );
         // Refresh data
         ref.invalidate(memberDetailProvider(memberId));
         ref.invalidate(memberTransactionsSupabaseProvider(memberId));
@@ -216,7 +218,9 @@ class _MemberInfoCard extends StatelessWidget {
               backgroundImage: avatarImage,
               child: avatarImage == null
                   ? Text(
-                      member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?',
+                      member.fullName.isNotEmpty
+                          ? member.fullName[0].toUpperCase()
+                          : '?',
                       style: theme.textTheme.headlineMedium,
                     )
                   : null,
@@ -331,15 +335,14 @@ class _WalletPointsCard extends StatelessWidget {
                   width: 1,
                   height: 60,
                   color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                ),
-                // Points section
+                ), // Points section
                 Expanded(
                   child: Column(
                     children: [
                       Icon(
                         Icons.emoji_events,
                         size: 32,
-                        color: Colors.amber[700],
+                        color: AppTheme.warningColor,
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -353,7 +356,7 @@ class _WalletPointsCard extends StatelessWidget {
                         _currencyFormat.format(points),
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.amber[700],
+                          color: AppTheme.warningColor,
                         ),
                       ),
                     ],
@@ -386,7 +389,8 @@ class _TransactionHistoryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final transactionsAsync = ref.watch(memberTransactionsSupabaseProvider(memberId));
+    final transactionsAsync =
+        ref.watch(memberTransactionsSupabaseProvider(memberId));
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
     return Card(
@@ -531,7 +535,8 @@ class _TransactionHistoryCard extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),            const Divider(height: 1),
+            ),
+            const Divider(height: 1),
             // List
             Expanded(
               child: ListView.separated(
@@ -570,31 +575,32 @@ class _SupabaseTransactionTile extends StatelessWidget {
 
     // Determine icon and color based on transaction type
     final txType = transaction.type;
-    final isCredit = txType == 'Nạp tiền' || txType == 'Hoàn tiền' || txType == 'Thưởng';
+    final isCredit =
+        txType == 'Nạp tiền' || txType == 'Hoàn tiền' || txType == 'Thưởng';
 
     final IconData icon;
     final Color iconColor;
     final Color amountColor;
-    
+
     switch (txType) {
       case 'Nạp tiền':
         icon = Icons.arrow_upward;
-        iconColor = Colors.green;
-        amountColor = Colors.green;
+        iconColor = AppTheme.successColor;
+        amountColor = AppTheme.successColor;
       case 'Hoàn tiền':
         icon = Icons.replay;
-        iconColor = Colors.blue;
-        amountColor = Colors.blue;
+        iconColor = AppTheme.primaryColor;
+        amountColor = AppTheme.primaryColor;
       case 'Thưởng':
         icon = Icons.stars;
-        iconColor = Colors.amber;
-        amountColor = Colors.amber.shade700;
+        iconColor = AppTheme.warningColor;
+        amountColor = AppTheme.warningColor;
       case 'Thanh toán':
       case 'Thanh toán phạt':
       default:
         icon = Icons.arrow_downward;
-        iconColor = Colors.red;
-        amountColor = Colors.red;
+        iconColor = AppTheme.errorColor;
+        amountColor = AppTheme.errorColor;
     }
 
     final amountText = isCredit
@@ -1026,6 +1032,7 @@ class _LoanHistoryCard extends ConsumerWidget {
       ),
     );
   }
+
   void _showAllLoans(
     BuildContext context,
     List<SupabaseLoanWithDetails> loans,
@@ -1073,7 +1080,7 @@ class _LoanHistoryCard extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1),            // Statistics row
+            const Divider(height: 1), // Statistics row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -1090,7 +1097,7 @@ class _LoanHistoryCard extends ConsumerWidget {
                         .where((l) => l.activeBooksCount > 0)
                         .length
                         .toString(),
-                    color: Colors.orange,
+                    color: AppTheme.warningColor,
                   ),
                   const SizedBox(width: 8),
                   _StatChip(
@@ -1099,7 +1106,7 @@ class _LoanHistoryCard extends ConsumerWidget {
                         .where((l) => l.activeBooksCount == 0)
                         .length
                         .toString(),
-                    color: Colors.green,
+                    color: AppTheme.successColor,
                   ),
                 ],
               ),
@@ -1200,18 +1207,20 @@ class _LoanHistoryTile extends StatelessWidget {
       statusIcon = Icons.check_circle;
     } else if (hasOverdue) {
       statusText = 'Quá hạn';
-      statusColor = Colors.red;
+      statusColor = AppTheme.errorColor;
       statusIcon = Icons.warning;
     } else {
       statusText = 'Đang mượn';
-      statusColor = Colors.orange;
+      statusColor = AppTheme.warningColor;
       statusIcon = Icons.schedule;
     }
 
     // Get first book title for display
     final firstDetail = loan.details.isNotEmpty ? loan.details.first : null;
     final displayTitle = firstDetail?.bookTitle ?? loan.loan.id;
-    final moreBooks = loan.details.length > 1 ? ' (+${loan.details.length - 1} sách khác)' : '';
+    final moreBooks = loan.details.length > 1
+        ? ' (+${loan.details.length - 1} sách khác)'
+        : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

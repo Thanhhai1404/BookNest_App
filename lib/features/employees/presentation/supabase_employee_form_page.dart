@@ -247,7 +247,9 @@ class _SupabaseEmployeeFormPageState
             // Mật khẩu
             _buildSectionTitle(
               context,
-              isEditing ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu *',
+              isEditing
+                  ? 'Mật khẩu mới (để trống nếu không đổi)'
+                  : 'Mật khẩu *',
             ),
             const SizedBox(height: 8),
             TextFormField(

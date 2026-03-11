@@ -311,7 +311,8 @@ class _BookCard extends StatelessWidget {
               builder: (_) => BookDetailPage(bookId: item.id),
             ),
           );
-        },        child: Column(
+        },
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Cover image hoặc placeholder

@@ -1,62 +1,5 @@
 # BookNest – Implementation Roadmap (Version 2.1)
 
-## Flutter (Fresher/Junior) – Offline (Single-Device / Kiosk Mode) + Drift (SQLite)
-
-> **Mục tiêu**: Xây dựng ứng dụng **Quản lý thư viện BookNest** chạy **trên 1 thiết bị duy nhất** (quầy/kiosk).
-> **Dữ liệu**: Lưu trữ cục bộ (Offline) trên thiết bị bằng **Drift (SQLite)**.
-> **Đối tượng**: Fresher/Junior Flutter – Ưu tiên "Dễ làm - Dễ test - Đầy đủ nghiệp vụ".
-
----
-
-## 0) Nguyên tắc thiết kế (V2.1)
-
-### 0.1 Single-Device (Kiosk Mode)
-
-- Ứng dụng chạy độc lập trên 1 thiết bị (Android/iOS tablet hoặc phone).
-- Dữ liệu nằm trong bộ nhớ máy.
-- **Không** backend, **Không** đồng bộ cloud, **Không** nhiều người dùng cùng lúc.
-
-### 0.2 Logic "Re-compute on App Start"
-
-- Thay vì chạy ngầm (background service) phức tạp tốn pin.
-- **Mỗi lần mở app** -> Hệ thống tự động quét và cập nhật trạng thái:
-  - Hội viên hết hạn -> Chuyển status `Expired`.
-  - Sách đang mượn quá hạn -> Đánh dấu `Overdue` để cảnh báo.
-  - Đơn đặt trước (Reservation) quá hạn lấy sách -> Chuyển status `Cancelled`.
-
-### 0.3 Digital-First (Không in ấn vật lý)
-
-- **Hóa đơn điện tử (Digital Receipt)**: Hiển thị chi tiết giao dịch trên màn hình sau khi xong.
-- **Thẻ thành viên ảo (Digital Card)**: Hiển thị mã QR trên màn hình để nhân viên quét.
-- **Sao lưu thủ công**: Export/Import file database thay vì tự động backup online.
-
----
-
-## 1) Tech Stack khuyến nghị
-
-### 1.1 Core
-
-- **Framework**: `Flutter 3.x` + Material 3 (Light/Dark theme).
-- **State Management**: `flutter_riverpod` (Quản lý state, tách biệt UI và Logic).
-- **Navigation**: `go_router` (Quản lý luồng màn hình).
-- **Database**: `drift`, `drift_flutter`, `sqlite3_flutter_libs` (SQLite ORM mạnh mẽ).
-
-### 1.2 Utilities & Hardware Access
-
-- **Quét mã**: `mobile_scanner` (Quét ISBN, Mã thành viên, Mã sách).
-- **Tạo mã QR**: `qr_flutter` (Hiển thị mã QR trên thẻ thành viên).
-- **Format dữ liệu**: `intl` (Tiền tệ VNĐ, Ngày tháng dd/MM/yyyy).
-- **Xử lý file/ảnh**:
-  - `image_picker`: Chọn ảnh bìa sách/avatar từ thư viện máy.
-  - `path_provider`: Lấy đường dẫn lưu file ảnh/DB trong máy.
-  - `share_plus` & `file_picker`: Để Export/Import file backup DB.
-
-### 1.3 Tooling
-
-- `flutter_test`: Unit test logic.
-- `mocktail`: Mock dữ liệu để test UI.
-- `build_runner`: Sinh code cho Drift và Riverpod.
-
 ---
 
 ## 2) Phạm vi nghiệp vụ (Scope)
@@ -338,7 +281,12 @@ Với bản V2.1 này, ứng dụng BookNest của bạn sẽ:
 
 ## 8) UI/UX Guidelines (Bổ sung)
 
-- **Primary Color**: Amber/Orange (Màu thương hiệu BookNest - Vàng cam ấm cúng).
-- **Typography**: Font mặc định của Material 3 hoặc Google Fonts (ví dụ: Poppins/Roboto).
-- **Components**: Sử dụng `Card`, `ListTile` chuẩn Material 3. Các nút hành động chính (FloatingActionButton) phải nổi bật.
-- **Dark Mode**: Hỗ trợ đầy đủ giao diện tối.
+- Primary Color: Red (#f20d0d - Màu thương hiệu mới sắc nét, hiện đại).
+
+- Background Color: Light (#f8f5f5) / Dark (#221010).
+
+- Typography: Bắt buộc sử dụng GoogleFonts.interTextTheme() (Font Inter).
+
+- Components: Sử dụng Card, ListTile chuẩn Material 3 nhưng phải bo góc 12px (tương đương rounded-xl của Tailwind) và có shadow nhẹ, viền mỏng.
+
+- Dark Mode: Hỗ trợ đầy đủ giao diện tối (nền #221010, card #0f172a).

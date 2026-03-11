@@ -24,7 +24,7 @@ class SupabaseAuthor {
       if (value is num) return value.toInt();
       return int.tryParse(value.toString()) ?? 0;
     }
-    
+
     return SupabaseAuthor(
       id: parseId(json['matg']),
       lastName: json['hotg'] as String?,
@@ -59,6 +59,7 @@ class SupabaseAuthorRepository {
 
   final SupabaseClient _client;
   static const String _tableName = 'tac_gia';
+
   /// Lấy tất cả tác giả
   Future<List<SupabaseAuthor>> getAuthors() async {
     try {
@@ -96,7 +97,8 @@ class SupabaseAuthorRepository {
     String? lastName,
     String? middleName,
     String? firstName,
-    String? hometown,  }) async {
+    String? hometown,
+  }) async {
     try {
       final response = await _client
           .from(_tableName)

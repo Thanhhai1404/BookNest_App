@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../data/supabase_employee_repository.dart';
 import 'supabase_employee_form_page.dart';
 
@@ -138,11 +139,12 @@ class SupabaseEmployeeListPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-            SizedBox(width: 8),
-            Text('Xác nhận xóa'),
+            Icon(Icons.warning_amber_rounded,
+                color: AppTheme.warningColor, size: 28),
+            const SizedBox(width: 8),
+            const Text('Xác nhận xóa'),
           ],
         ),
         content: Text(
@@ -289,7 +291,8 @@ class _EmployeeTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: scheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(4),
@@ -309,7 +312,8 @@ class _EmployeeTile extends StatelessWidget {
               const SizedBox(height: 2),
               Row(
                 children: [
-                  Icon(Icons.account_circle_outlined, size: 14, color: scheme.outline),
+                  Icon(Icons.account_circle_outlined,
+                      size: 14, color: scheme.outline),
                   const SizedBox(width: 4),
                   Text(
                     '@${employee.username}',

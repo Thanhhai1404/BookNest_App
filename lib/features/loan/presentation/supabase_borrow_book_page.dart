@@ -10,10 +10,12 @@ class SupabaseBorrowBookPage extends ConsumerStatefulWidget {
   const SupabaseBorrowBookPage({super.key});
 
   @override
-  ConsumerState<SupabaseBorrowBookPage> createState() => _SupabaseBorrowBookPageState();
+  ConsumerState<SupabaseBorrowBookPage> createState() =>
+      _SupabaseBorrowBookPageState();
 }
 
-class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage> {
+class _SupabaseBorrowBookPageState
+    extends ConsumerState<SupabaseBorrowBookPage> {
   final _formKey = GlobalKey<FormState>();
 
   Map<String, dynamic>? _selectedMember;
@@ -140,7 +142,8 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
 
                 // Lọc ra những sách chưa được chọn
                 final availableCopies = copies
-                    .where((c) => !_selectedBooks.any((s) => s.barcode == c.barcode))
+                    .where((c) =>
+                        !_selectedBooks.any((s) => s.barcode == c.barcode))
                     .toList();
 
                 return Column(
@@ -153,7 +156,8 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
                           : () => _showBookPicker(context, availableCopies),
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
                         decoration: BoxDecoration(
                           border: Border.all(color: scheme.outline),
                           borderRadius: BorderRadius.circular(12),
@@ -161,21 +165,26 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.menu_book_outlined, color: scheme.onSurfaceVariant),
+                            Icon(Icons.menu_book_outlined,
+                                color: scheme.onSurfaceVariant),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 availableCopies.isEmpty
                                     ? 'Đã chọn hết sách có sẵn'
                                     : 'Bấm để chọn sách... (${availableCopies.length} sách có sẵn)',
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge
+                                    ?.copyWith(
                                       color: availableCopies.isEmpty
                                           ? scheme.onSurfaceVariant
                                           : scheme.onSurface,
                                     ),
                               ),
                             ),
-                            Icon(Icons.add_circle_outline, color: scheme.primary),
+                            Icon(Icons.add_circle_outline,
+                                color: scheme.primary),
                           ],
                         ),
                       ),
@@ -189,18 +198,23 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
                         decoration: BoxDecoration(
                           color: scheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: scheme.outline.withAlpha(50)),
+                          border:
+                              Border.all(color: scheme.outline.withAlpha(50)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.library_books, size: 20, color: scheme.primary),
+                                Icon(Icons.library_books,
+                                    size: 20, color: scheme.primary),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Sách đã chọn (${_selectedBooks.length})',
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(
                                         fontWeight: FontWeight.w600,
                                       ),
                                 ),
@@ -208,19 +222,24 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
                             ),
                             const SizedBox(height: 8),
                             ...(_selectedBooks.map((book) => Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 4),
                                   child: Row(
                                     children: [
                                       Expanded(
                                         child: Text(
                                           '• ${book.displayText}',
-                                          style: Theme.of(context).textTheme.bodyMedium,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium,
                                         ),
                                       ),
                                       IconButton(
-                                        icon: Icon(Icons.close, size: 20, color: scheme.error),
+                                        icon: Icon(Icons.close,
+                                            size: 20, color: scheme.error),
                                         onPressed: () {
-                                          setState(() => _selectedBooks.remove(book));
+                                          setState(() =>
+                                              _selectedBooks.remove(book));
                                         },
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
@@ -264,7 +283,8 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
               onTap: _pickDueDate,
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 decoration: BoxDecoration(
                   border: Border.all(color: scheme.outline),
                   borderRadius: BorderRadius.circular(12),
@@ -276,7 +296,8 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        DateFormat('EEEE, dd/MM/yyyy', 'vi_VN').format(_dueDate),
+                        DateFormat('EEEE, dd/MM/yyyy', 'vi_VN')
+                            .format(_dueDate),
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ),
@@ -296,7 +317,8 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
 
             // Submit button
             FilledButton.icon(
-              onPressed: _isSubmitting || _selectedBooks.isEmpty ? null : _submit,
+              onPressed:
+                  _isSubmitting || _selectedBooks.isEmpty ? null : _submit,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -313,15 +335,16 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
                       ),
                     )
                   : const Icon(Icons.check_rounded),
-              label: Text(_isSubmitting 
-                ? 'Đang xử lý...' 
-                : 'Tạo phiếu mượn (${_selectedBooks.length} sách)'),
+              label: Text(_isSubmitting
+                  ? 'Đang xử lý...'
+                  : 'Tạo phiếu mượn (${_selectedBooks.length} sách)'),
             ),
           ],
         ),
       ),
     );
   }
+
   Future<void> _pickDueDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -339,9 +362,10 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
   }
 
   /// Hiển thị bottom sheet để chọn sách
-  void _showBookPicker(BuildContext context, List<SupabaseAvailableCopyInfo> availableCopies) {
+  void _showBookPicker(
+      BuildContext context, List<SupabaseAvailableCopyInfo> availableCopies) {
     final scheme = Theme.of(context).colorScheme;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -405,7 +429,8 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text('Mã vạch: ${book.barcode}'),
-                    trailing: Icon(Icons.add_circle_outline, color: scheme.primary),
+                    trailing:
+                        Icon(Icons.add_circle_outline, color: scheme.primary),
                     onTap: () {
                       setState(() => _selectedBooks.add(book));
                       Navigator.pop(context);
@@ -419,6 +444,7 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
       ),
     );
   }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedBooks.isEmpty) return;
@@ -430,27 +456,30 @@ class _SupabaseBorrowBookPageState extends ConsumerState<SupabaseBorrowBookPage>
       final currentEmployee = ref.read(currentEmployeeProvider);
       final employeeId = currentEmployee?.id ?? 'NV001';
 
-      final loanId = await ref.read(supabaseLoanViewModelProvider.notifier).borrowBooks(
-            memberId: _selectedMember!['madg'] as String,
-            barcodes: _selectedBooks.map((b) => b.barcode).toList(),
-            dueDate: _dueDate,
-            employeeId: employeeId,
-          );
+      final loanId =
+          await ref.read(supabaseLoanViewModelProvider.notifier).borrowBooks(
+                memberId: _selectedMember!['madg'] as String,
+                barcodes: _selectedBooks.map((b) => b.barcode).toList(),
+                dueDate: _dueDate,
+                employeeId: employeeId,
+              );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Tạo phiếu mượn $loanId thành công với ${_selectedBooks.length} sách!'),
+            content: Text(
+                'Tạo phiếu mượn $loanId thành công với ${_selectedBooks.length} sách!'),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
           ),
         );
         Navigator.of(context).pop(true);
-      }} catch (e) {
+      }
+    } catch (e) {
       if (mounted) {
         // Lọc bỏ 'Exception: ' khỏi chuỗi lỗi để hiển thị thân thiện hơn
         final errorMessage = e.toString().replaceAll('Exception: ', '');
-        
+
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(

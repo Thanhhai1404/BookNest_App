@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/supabase_auth_provider.dart';
 import '../../../data/db/app_database.dart';
 import '../../loan/presentation/loan_view_model.dart';
@@ -8,10 +9,10 @@ import 'book_detail_view_model.dart';
 
 /// Status enum cho sách
 enum BookCopyStatus {
-  available(0, 'Sẵn sàng', Colors.green),
-  borrowed(1, 'Đang mượn', Colors.red),
-  reserved(2, 'Đã đặt trước', Colors.orange),
-  damaged(3, 'Hỏng/Mất', Colors.grey);
+  available(0, 'Sẵn sàng', AppTheme.successColor),
+  borrowed(1, 'Đang mượn', AppTheme.errorColor),
+  reserved(2, 'Đã đặt trước', AppTheme.warningColor),
+  damaged(3, 'Hỏng/Mất', AppTheme.textSecondary);
 
   final int code;
   final String label;
@@ -40,476 +41,666 @@ class BookDetailPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Chi tiết $bookId'),
+        title: const Text('Book Details'),
+        centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            onPressed: () {
+              // TODO: Share functionality
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Chia sẻ đang phát triển')),
+              );
+            },
+          ),
           // Chỉ hiển thị nút Xóa nếu là Admin
           if (isAdmin)
             IconButton(
               tooltip: 'Xóa sách',
               icon: const Icon(Icons.delete_outline),
-              onPressed: () async {
-                final ok = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Xóa sách?'),
-                    content: const Text(
-                      'Bạn có chắc chắn muốn xóa sách này và toàn bộ bản sao không? Hành động này không thể hoàn tác.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Hủy'),
-                      ),
-                      FilledButton.tonal(
-                        style: FilledButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: Colors.red,
-                        ),
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Xóa'),
-                      ),
-                    ],
-                  ),
-                );
-                if (ok != true) return;
-
-                final notifier =
-                    ref.read(bookDetailViewModelProvider(bookId).notifier);
-                try {
-                  await notifier.deleteBook();
-                  if (!context.mounted) return;
-                  Navigator.of(context).pop(true);
-                } catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Xóa sách thất bại: $e')),
-                  );
-                }
-              },
+              onPressed: () => _showDeleteBookDialog(context, ref),
             ),
         ],
       ),
       body: stateAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text('Lỗi: $e'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => ref.invalidate(bookDetailViewModelProvider(bookId)),
-                  child: const Text('Thử lại'),
-                ),
-              ],
-            ),
-          ),
-        ),        data: (state) {
-          return Column(
-            children: [
-              // Header and reservation button wrapped in SingleChildScrollView if no copies
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    _HeaderCard(
-                      title: state.bookTitle.title.isNotEmpty 
-                          ? state.bookTitle.title 
-                          : state.bookTitle.id,
-                      author: state.authorName,
-                      subtitle: '${state.publisherName} • ${state.categoryName}',
-                      description: state.bookTitle.description ?? '',
-                      availableCopies: state.availableCopiesCount,
-                      totalCopies: state.copies.length,
-                      hasReservation: state.hasActiveReservation,
-                      imageUrl: state.bookTitle.imageUrl,
-                    ),
-                    // Reservation button when out of stock
-                    if (state.availableCopiesCount == 0 && state.copies.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _ReservationButton(
-                          bookId: bookId,
-                          hasActiveReservation: state.hasActiveReservation,
-                          onReserve: (memberId) async {
-                            try {
-                              await ref
-                                  .read(bookDetailViewModelProvider(bookId).notifier)
-                                  .createReservation(memberId);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text('Đặt trước thành công!'),
-                                    backgroundColor: Colors.green.shade600,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Lỗi: $e'),
-                                    backgroundColor: Colors.red.shade600,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                        ),
-                      ),
-                    const Divider(height: 1),
-                    // Book copies section
-                    if (state.copies.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: Text('Chưa có bản sao nào.')),
-                      )
-                    else
-                      ...state.copies.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final c = entry.value;
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            left: 16,
-                            right: 16,
-                            top: index == 0 ? 16 : 4,
-                            bottom: index == state.copies.length - 1 ? 80 : 4,
-                          ),
-                          child: _CopyTile(
-                            copyId: c.barcode,
-                            status: c.status,
-                            onDelete: () async {
-                              final ok = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Xóa bản sao?'),
-                                  content: Text('Xóa bản sao ${c.barcode} này?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, false),
-                                      child: const Text('Hủy'),
-                                    ),
-                                    FilledButton.tonal(
-                                      style: FilledButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        backgroundColor: Colors.red,
-                                      ),
-                                      onPressed: () => Navigator.pop(ctx, true),
-                                      child: const Text('Xóa'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (ok != true) return;
-
-                              final notifier = ref.read(
-                                  bookDetailViewModelProvider(bookId).notifier);
-                              try {
-                                await notifier.deleteCopy(c.barcode);
-                              } catch (e) {
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                      content:
-                                          Text('Xóa bản sao thất bại: $e')),
-                                );
-                              }
-                            },
-                          ),
-                        );
-                      }),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+        error: (e, st) => _buildErrorState(context, ref, e),
+        data: (state) => _buildBookDetailContent(context, ref, state, isAdmin),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final notifier =
-              ref.read(bookDetailViewModelProvider(bookId).notifier);
-          try {
-            await notifier.addBookCopy();
-          } catch (e) {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Nhập kho thất bại: $e')),
-            );
-          }
-        },
-        icon: const Icon(Icons.library_add),
-        label: const Text('Thêm bản sao'),
-      ),
+      // FAB chỉ hiển thị cho Admin
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => _addBookCopy(context, ref),
+              icon: const Icon(Icons.library_add),
+              label: const Text('Thêm bản sao'),
+            )
+          : null,
     );
   }
-}
 
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({
-    required this.title,
-    required this.author,
-    required this.subtitle,
-    required this.description,
-    required this.availableCopies,
-    required this.totalCopies,
-    required this.hasReservation,
-    this.imageUrl,
-  });
-
-  final String title;
-  final String author;
-  final String subtitle;
-  final String description;
-  final int availableCopies;
-  final int totalCopies;
-  final bool hasReservation;  final String? imageUrl;
-
-  Widget _buildCoverImage(ColorScheme scheme) {
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return ClipRRect(
-        child: Image.network(
-          imageUrl!,
-          fit: BoxFit.contain,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) {
-            return Icon(Icons.menu_book, size: 64, color: scheme.outline);
-          },
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-              ),
-            );
-          },
-        ),
-      );
-    }
-    return Icon(Icons.menu_book, size: 64, color: scheme.outline);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    // Availability status
-    final (statusLabel, statusColor) = availableCopies > 0
-        ? ('$availableCopies/$totalCopies sẵn sàng', Colors.green)
-        : ('Hết sách', Colors.red);
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
+  Widget _buildErrorState(BuildContext context, WidgetRef ref, Object e) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              height: 180,
-              color: scheme.surfaceContainerHighest,
-              child: _buildCoverImage(scheme),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title and availability badge
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.2,
-                                  ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: statusColor.withAlpha(25),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: statusColor.withAlpha(100)),
-                        ),
-                        child: Text(
-                          statusLabel,
-                          style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                  if (hasReservation) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withAlpha(25),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.withAlpha(100)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.schedule,
-                              size: 16, color: Colors.orange.shade700),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Có người đặt trước',
-                            style: TextStyle(
-                              color: Colors.orange.shade700,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  if (description.trim().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      description,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ],
-              ),
+            Icon(Icons.error_outline, size: 48, color: AppTheme.errorColor),
+            const SizedBox(height: 16),
+            Text('Lỗi: $e'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () =>
+                  ref.invalidate(bookDetailViewModelProvider(bookId)),
+              child: const Text('Thử lại'),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-/// Button for making reservations when book is out of stock.
-class _ReservationButton extends ConsumerWidget {
-  const _ReservationButton({
-    required this.bookId,
-    required this.hasActiveReservation,
-    required this.onReserve,
-  });
+  Widget _buildBookDetailContent(
+    BuildContext context,
+    WidgetRef ref,
+    BookDetailState state,
+    bool isAdmin,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final title = state.bookTitle.title.isNotEmpty
+        ? state.bookTitle.title
+        : state.bookTitle.id;
+    final author = state.authorName;
+    final description = state.bookTitle.description ?? '';
+    final imageUrl = state.bookTitle.imageUrl;
+    final categoryName = state.categoryName;
+    final availableCopies = state.availableCopiesCount;
+    final totalCopies = state.copies.length;
 
-  final String bookId;
-  final bool hasActiveReservation;
-  final Future<void> Function(String memberId) onReserve;
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. Book Cover Image
+                _buildCoverSection(context, imageUrl, scheme),
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: () => _showReservationDialog(context, ref),
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.orange,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+                // 2. Title & Rating
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimaryLight,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Rating badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withAlpha(20),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star,
+                                size: 16, color: AppTheme.primaryColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              '4.8', // Placeholder rating
+                              style: TextStyle(
+                                color: AppTheme.primaryColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. Author
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                  child: Text(
+                    'by $author',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                ),
+
+                // 4. Info Row (Genre, Pages, Language)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                            color: scheme.outlineVariant.withAlpha(100)),
+                        bottom: BorderSide(
+                            color: scheme.outlineVariant.withAlpha(100)),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _InfoColumn(
+                            label: 'GENRE',
+                            value:
+                                categoryName.isNotEmpty ? categoryName : 'N/A',
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: scheme.outlineVariant.withAlpha(100),
+                        ),
+                        Expanded(
+                          child: _InfoColumn(
+                            label: 'PAGES',
+                            value: '${totalCopies > 0 ? totalCopies : "—"}',
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: scheme.outlineVariant.withAlpha(100),
+                        ),
+                        Expanded(
+                          child: _InfoColumn(
+                            label: 'LANGUAGE',
+                            value: 'Tiếng Việt',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 5. Synopsis
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Synopsis',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        description.isNotEmpty
+                            ? description
+                            : 'Chưa có mô tả cho sách này.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.textSecondary,
+                              height: 1.6,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 6. Action Buttons (Borrow Now, Add to Wishlist)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                  child: Column(
+                    children: [
+                      // Borrow Now button
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: availableCopies > 0
+                              ? () => _showBorrowDialog(context, ref, state)
+                              : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                AppTheme.primaryColor.withAlpha(100),
+                            disabledForegroundColor: Colors.white70,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            availableCopies > 0 ? 'Borrow Now' : 'Out of Stock',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Add to Wishlist button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _handleWishlist(context, ref, state),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.primaryColor,
+                            side: BorderSide(
+                                color: AppTheme.primaryColor.withAlpha(100)),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: Icon(
+                            state.hasActiveReservation
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                            color: AppTheme.primaryColor,
+                          ),
+                          label: Text(
+                            state.hasActiveReservation
+                                ? 'Already Reserved'
+                                : 'Add to Wishlist',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 7. Admin Section: Book Copies Management
+                if (isAdmin) ...[
+                  const Divider(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      children: [
+                        Icon(Icons.inventory_2_outlined, color: scheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Quản lý bản sao ($availableCopies/$totalCopies sẵn)',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (state.copies.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.inventory_2_outlined,
+                                size: 48, color: scheme.outline),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Chưa có bản sao nào',
+                              style: TextStyle(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ...state.copies.map((c) => Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 4),
+                          child: _CopyTile(
+                            copyId: c.barcode,
+                            status: c.status,
+                            onDelete: () =>
+                                _deleteCopy(context, ref, c.barcode),
+                          ),
+                        )),
+                  const SizedBox(height: 80), // Space for FAB
+                ],
+              ],
+            ),
           ),
         ),
-        icon: const Icon(Icons.bookmark_add),
-        label: const Text('Đặt trước sách này'),
+      ],
+    );
+  }
+
+  Widget _buildCoverSection(
+      BuildContext context, String? imageUrl, ColorScheme scheme) {
+    return Container(
+      height: 300,
+      width: double.infinity,
+      color: AppTheme.backgroundLight,
+      child: Center(
+        child: Container(
+          height: 220,
+          width: 150,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(40),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: imageUrl != null && imageUrl.isNotEmpty
+              ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return _buildPlaceholderCover(scheme);
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                      ),
+                    );
+                  },
+                )
+              : _buildPlaceholderCover(scheme),
+        ),
       ),
     );
   }
 
-  Future<void> _showReservationDialog(
-      BuildContext context, WidgetRef ref) async {
-    final membersAsync = ref.read(allMembersProvider);
-
-    final members = membersAsync.maybeWhen(
-      data: (list) => list,
-      orElse: () => <Member>[],
+  Widget _buildPlaceholderCover(ColorScheme scheme) {
+    return Container(
+      color: scheme.surfaceContainerHighest,
+      child: Icon(Icons.menu_book, size: 48, color: scheme.outline),
     );
+  }
 
-    if (members.isEmpty) {
+  void _showBorrowDialog(
+      BuildContext context, WidgetRef ref, BookDetailState state) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Chức năng mượn sách đang phát triển')),
+    );
+  }
+
+  void _handleWishlist(
+      BuildContext context, WidgetRef ref, BookDetailState state) {
+    if (state.hasActiveReservation) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không có hội viên nào trong hệ thống.')),
+        const SnackBar(content: Text('Sách đã được đặt trước')),
       );
       return;
-    }
-
-    final selectedMemberId = await showDialog<String>(
+    } // Show member selection dialog for reservation
+    showDialog(
       context: context,
-      builder: (ctx) => _MemberSelectionDialog(members: members),
+      builder: (ctx) => _MemberSelectionDialog(
+        members: ref.read(allMembersProvider).maybeWhen(
+              data: (members) => members,
+              orElse: () => [],
+            ),
+        onSelect: (memberId) async {
+          Navigator.pop(ctx);
+          try {
+            await ref
+                .read(bookDetailViewModelProvider(bookId).notifier)
+                .createReservation(memberId);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Đặt trước thành công!'),
+                  backgroundColor: AppTheme.successColor,
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Lỗi: $e'),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+            }
+          }
+        },
+      ),
     );
+  }
 
-    if (selectedMemberId != null && context.mounted) {
-      await onReserve(selectedMemberId);
+  Future<void> _showDeleteBookDialog(
+      BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa sách?'),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa sách này và toàn bộ bản sao không? Hành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: AppTheme.errorColor,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await ref.read(bookDetailViewModelProvider(bookId).notifier).deleteBook();
+      if (!context.mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Xóa sách thất bại: $e')),
+      );
+    }
+  }
+
+  Future<void> _addBookCopy(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref
+          .read(bookDetailViewModelProvider(bookId).notifier)
+          .addBookCopy();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nhập kho thất bại: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteCopy(
+      BuildContext context, WidgetRef ref, String barcode) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa bản sao?'),
+        content: Text('Xóa bản sao $barcode này?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: AppTheme.errorColor,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await ref
+          .read(bookDetailViewModelProvider(bookId).notifier)
+          .deleteCopy(barcode);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Xóa bản sao thất bại: $e')),
+      );
     }
   }
 }
 
-/// Dialog to select a member for reservation.
+/// Info column widget for Genre/Pages/Language
+class _InfoColumn extends StatelessWidget {
+  const _InfoColumn({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 1,
+              ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Copy Tile for admin management
+class _CopyTile extends StatelessWidget {
+  const _CopyTile({required this.copyId, required this.status, this.onDelete});
+
+  final String copyId;
+  final int status;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final copyStatus = BookCopyStatus.fromCode(status);
+    final scheme = Theme.of(context).colorScheme;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: copyStatus.color.withAlpha(25),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(Icons.qr_code_2, color: copyStatus.color),
+        ),
+        title: Text(
+          copyId,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        subtitle: Text(
+          copyStatus.label,
+          style: TextStyle(color: copyStatus.color, fontSize: 12),
+        ),
+        trailing: onDelete != null
+            ? IconButton(
+                icon: Icon(Icons.delete_outline, color: scheme.error),
+                onPressed: onDelete,
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+/// Member Selection Dialog for reservations
 class _MemberSelectionDialog extends StatefulWidget {
-  const _MemberSelectionDialog({required this.members});
+  const _MemberSelectionDialog({required this.members, required this.onSelect});
 
   final List<Member> members;
+  final void Function(String memberId) onSelect;
 
   @override
   State<_MemberSelectionDialog> createState() => _MemberSelectionDialogState();
 }
 
 class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
+  String _query = '';
   String? _selectedMemberId;
-  String _searchQuery = '';
 
-  String _formatMemberName(Member m) {
-    final parts = <String>[];
-    for (final p in [m.lastName, m.middleName, m.firstName]) {
-      final v = (p ?? '').trim();
-      if (v.isNotEmpty) parts.add(v);
-    }
+  /// Get full name from Member (drift class doesn't have fullName getter)
+  String _getMemberFullName(Member m) {
+    final parts = [m.lastName, m.middleName, m.firstName]
+        .where((e) => (e ?? '').trim().isNotEmpty)
+        .map((e) => e!.trim())
+        .toList();
     return parts.isEmpty ? m.id : parts.join(' ');
   }
 
   List<Member> get _filteredMembers {
-    if (_searchQuery.isEmpty) return widget.members;
-    final query = _searchQuery.toLowerCase();
+    if (_query.isEmpty) return widget.members;
+    final q = _query.toLowerCase();
     return widget.members.where((m) {
-      final name = _formatMemberName(m).toLowerCase();
+      final name = _getMemberFullName(m).toLowerCase();
       final phone = (m.phone ?? '').toLowerCase();
-      return name.contains(query) || phone.contains(query) || m.id.toLowerCase().contains(query);
+      return name.contains(q) ||
+          phone.contains(q) ||
+          m.id.toLowerCase().contains(q);
     }).toList();
+  }
+
+  String _formatMemberName(Member m) {
+    final name = _getMemberFullName(m);
+    return name.isNotEmpty ? name : m.id;
   }
 
   @override
@@ -517,7 +708,7 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.person_search, color: Colors.orange.shade700),
+          Icon(Icons.person_search, color: AppTheme.primaryColor),
           const SizedBox(width: 8),
           const Text('Chọn hội viên'),
         ],
@@ -527,25 +718,23 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Search field
             TextField(
               decoration: InputDecoration(
-                hintText: 'Tìm theo tên, SĐT hoặc mã...',
+                hintText: 'Tìm theo tên, SĐT...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               ),
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: (v) => setState(() => _query = v),
             ),
-            const SizedBox(height: 16),
-            // Member list
-            Flexible(
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 300,
               child: _filteredMembers.isEmpty
-                  ? const Center(child: Text('Không tìm thấy hội viên.'))
+                  ? const Center(child: Text('Không tìm thấy'))
                   : ListView.builder(
-                      shrinkWrap: true,
                       itemCount: _filteredMembers.length,
                       itemBuilder: (context, index) {
                         final member = _filteredMembers[index];
@@ -555,11 +744,14 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           selected: isSelected,
-                          selectedTileColor: Colors.orange.withAlpha(30),
+                          selectedTileColor:
+                              AppTheme.primaryColor.withAlpha(20),
                           leading: CircleAvatar(
                             backgroundColor: isSelected
-                                ? Colors.orange
-                                : Theme.of(context).colorScheme.primaryContainer,
+                                ? AppTheme.primaryColor
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
                             child: Text(
                               _formatMemberName(member)[0].toUpperCase(),
                               style: TextStyle(
@@ -574,8 +766,9 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                           title: Text(
                             _formatMemberName(member),
                             style: TextStyle(
-                              fontWeight:
-                                  isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                           subtitle: Text(
@@ -583,7 +776,8 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           trailing: isSelected
-                              ? const Icon(Icons.check_circle, color: Colors.orange)
+                              ? Icon(Icons.check_circle,
+                                  color: AppTheme.primaryColor)
                               : null,
                           onTap: () =>
                               setState(() => _selectedMemberId = member.id),
@@ -602,53 +796,10 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
         FilledButton(
           onPressed: _selectedMemberId == null
               ? null
-              : () => Navigator.pop(context, _selectedMemberId),
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+              : () => widget.onSelect(_selectedMemberId!),
           child: const Text('Đặt trước'),
         ),
       ],
-    );
-  }
-}
-
-class _CopyTile extends StatelessWidget {
-  const _CopyTile({required this.copyId, required this.status, this.onDelete});
-
-  final String copyId;
-  final int status;
-  final VoidCallback? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = BookCopyStatus.fromCode(status);
-
-    return ListTile(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      tileColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-      title: Text(copyId, style: const TextStyle(fontWeight: FontWeight.w600)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: s.color.withAlpha(28),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: s.color.withAlpha(120)),
-            ),
-            child: Text(
-              s.label,
-              style: TextStyle(color: s.color, fontWeight: FontWeight.w700),
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Xóa bản sao',
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: onDelete,
-          ),
-        ],
-      ),
     );
   }
 }

@@ -8,7 +8,10 @@ import '../../members/data/member_repository.dart';
 
 // Re-export providers for backward compatibility
 export '../../members/data/member_repository.dart'
-    show supabaseMemberRepositoryProvider, SupabaseMember, generateSupabaseMemberIdProvider;
+    show
+        supabaseMemberRepositoryProvider,
+        SupabaseMember,
+        generateSupabaseMemberIdProvider;
 export '../../members/data/package_repository.dart'
     show packageRepositoryProvider, SupabasePackage, packagesProvider;
 
@@ -105,9 +108,8 @@ class MemberListController extends StateNotifier<MemberListState> {
       final repo = ref.read(supabaseMemberRepositoryProvider);
       final q = state.debouncedQuery.trim();
 
-      final members = q.isEmpty
-          ? await repo.getMembers()
-          : await repo.searchMembers(q);
+      final members =
+          q.isEmpty ? await repo.getMembers() : await repo.searchMembers(q);
 
       state = state.copyWith(members: members, isLoading: false);
     } catch (e) {
@@ -125,7 +127,9 @@ class MemberListController extends StateNotifier<MemberListState> {
     final repo = ref.read(supabaseMemberRepositoryProvider);
     await repo.deleteMember(id);
     await _loadMembers();
-  }  /// Thêm hội viên mới
+  }
+
+  /// Thêm hội viên mới
   /// [avatarFile] - File avatar (optional), sẽ được upload lên Storage
   Future<void> addMember({
     required String id,
@@ -160,6 +164,7 @@ class MemberListController extends StateNotifier<MemberListState> {
     );
     await _loadMembers();
   }
+
   /// Cập nhật hội viên
   /// [avatarFile] - File avatar mới (optional), sẽ được upload lên Storage
   Future<void> updateMember({

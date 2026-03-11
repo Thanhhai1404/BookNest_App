@@ -40,10 +40,8 @@ class SupabaseDashboardRepository {
       final totalMembers = (membersResponse as List).length;
 
       // 3. Đếm sách đang mượn (bảng sach với trangthai = 1)
-      final borrowedResponse = await _client
-          .from('sach')
-          .select('mavach')
-          .eq('trangthai', 1);
+      final borrowedResponse =
+          await _client.from('sach').select('mavach').eq('trangthai', 1);
       final borrowedBooks = (borrowedResponse as List).length;
 
       // 4. Đếm số sách quá hạn (bảng chi_tiet_muon với trangthai = 0 và ngayhentra < now)

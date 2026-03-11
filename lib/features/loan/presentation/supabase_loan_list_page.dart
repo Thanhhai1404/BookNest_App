@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../data/repositories/supabase_loan_repository.dart';
 import 'supabase_borrow_book_page.dart';
 import 'supabase_loan_view_model.dart';
@@ -34,7 +35,8 @@ class SupabaseLoanListPage extends ConsumerWidget {
                 Text('Lỗi: $e'),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: () => ref.invalidate(supabaseLoanViewModelProvider),
+                  onPressed: () =>
+                      ref.invalidate(supabaseLoanViewModelProvider),
                   child: const Text('Thử lại'),
                 ),
               ],
@@ -193,7 +195,8 @@ class _LoanListView extends ConsumerWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(supabaseLoanViewModelProvider.notifier).refresh(),
+      onRefresh: () =>
+          ref.read(supabaseLoanViewModelProvider.notifier).refresh(),
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: loans.length,
@@ -220,11 +223,10 @@ class _LoanCard extends ConsumerWidget {
     final details = item.details;
 
     // Tìm sách quá hạn nhất
-    final overdueDetail = details
-        .where((d) => d.isOverdue)
-        .toList()
+    final overdueDetail = details.where((d) => d.isOverdue).toList()
       ..sort((a, b) => b.overdueDays.compareTo(a.overdueDays));
-    final maxOverdueDays = overdueDetail.isNotEmpty ? overdueDetail.first.overdueDays : 0;
+    final maxOverdueDays =
+        overdueDetail.isNotEmpty ? overdueDetail.first.overdueDays : 0;
 
     return Card(
       elevation: 0,
@@ -254,9 +256,8 @@ class _LoanCard extends ConsumerWidget {
                         : scheme.primaryContainer,
                     child: Icon(
                       Icons.person_outline,
-                      color: item.hasOverdueBooks
-                          ? scheme.error
-                          : scheme.primary,
+                      color:
+                          item.hasOverdueBooks ? scheme.error : scheme.primary,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -267,15 +268,17 @@ class _LoanCard extends ConsumerWidget {
                       children: [
                         Text(
                           loan.memberName ?? loan.memberId,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                         Text(
                           'Mã PM: ${loan.id}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),
@@ -283,7 +286,8 @@ class _LoanCard extends ConsumerWidget {
                   // Overdue badge
                   if (item.hasOverdueBooks)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: scheme.errorContainer,
                         borderRadius: BorderRadius.circular(8),
@@ -312,13 +316,18 @@ class _LoanCard extends ConsumerWidget {
                         Icon(
                           Icons.menu_book_outlined,
                           size: 18,
-                          color: detail.isOverdue ? scheme.error : scheme.onSurfaceVariant,
+                          color: detail.isOverdue
+                              ? scheme.error
+                              : scheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             detail.bookTitle ?? detail.barcode,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
                                   color: detail.isOverdue ? scheme.error : null,
                                 ),
                             maxLines: 1,
@@ -329,9 +338,12 @@ class _LoanCard extends ConsumerWidget {
                           detail.dueDate != null
                               ? DateFormat('dd/MM').format(detail.dueDate!)
                               : '---',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: detail.isOverdue ? scheme.error : scheme.onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: detail.isOverdue
+                                        ? scheme.error
+                                        : scheme.onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),
@@ -356,7 +368,9 @@ class _LoanCard extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   // Call button for overdue
-                  if (showCallButton && loan.memberPhone != null && loan.memberPhone!.isNotEmpty)
+                  if (showCallButton &&
+                      loan.memberPhone != null &&
+                      loan.memberPhone!.isNotEmpty)
                     IconButton(
                       onPressed: () => _makePhoneCall(loan.memberPhone!),
                       icon: const Icon(Icons.phone_outlined),
@@ -410,15 +424,17 @@ class _LoanCard extends ConsumerWidget {
                       children: [
                         Text(
                           'Phiếu mượn ${loan.id}',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                         ),
                         Text(
                           'Ngày mượn: ${loan.borrowDate != null ? DateFormat('dd/MM/yyyy').format(loan.borrowDate!) : '---'}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),
@@ -464,7 +480,9 @@ class _LoanCard extends ConsumerWidget {
                             : scheme.surfaceContainerHighest,
                         child: Icon(
                           Icons.menu_book,
-                          color: detail.isOverdue ? scheme.error : scheme.onSurfaceVariant,
+                          color: detail.isOverdue
+                              ? scheme.error
+                              : scheme.onSurfaceVariant,
                         ),
                       ),
                       title: Text(detail.bookTitle ?? detail.barcode),
@@ -489,7 +507,8 @@ class _LoanCard extends ConsumerWidget {
                         ],
                       ),
                       trailing: detail.returnDate != null
-                          ? Icon(Icons.check_circle, color: Colors.green.shade600)
+                          ? Icon(Icons.check_circle,
+                              color: Colors.green.shade600)
                           : null,
                     ),
                   )),
@@ -593,7 +612,8 @@ class _ReturnBookDialogState extends ConsumerState<_ReturnBookDialog> {
           child: const Text('Hủy'),
         ),
         FilledButton(
-          onPressed: _selectedBarcodes.isEmpty || _isSubmitting ? null : _submit,
+          onPressed:
+              _selectedBarcodes.isEmpty || _isSubmitting ? null : _submit,
           child: _isSubmitting
               ? const SizedBox(
                   width: 20,
@@ -626,8 +646,8 @@ class _ReturnBookDialogState extends ConsumerState<_ReturnBookDialog> {
 
         // Show summary
         final overdueBooks = results.where((r) => r.isOverdue).toList();
-        final totalFine = overdueBooks.fold<int>(0, (sum, r) => sum + r.fineAmount);
-
+        final totalFine =
+            overdueBooks.fold<int>(0, (sum, r) => sum + r.fineAmount);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -635,7 +655,9 @@ class _ReturnBookDialogState extends ConsumerState<_ReturnBookDialog> {
                   ? 'Trả ${results.length} sách thành công!'
                   : 'Trả ${results.length} sách thành công. Phạt: ${_currencyFormat.format(totalFine)} VND',
             ),
-            backgroundColor: overdueBooks.isEmpty ? Colors.green.shade600 : Colors.orange.shade600,
+            backgroundColor: overdueBooks.isEmpty
+                ? AppTheme.successColor
+                : AppTheme.warningColor,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -645,7 +667,7 @@ class _ReturnBookDialogState extends ConsumerState<_ReturnBookDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi: $e'),
-            backgroundColor: Colors.red.shade600,
+            backgroundColor: AppTheme.errorColor,
             behavior: SnackBarBehavior.floating,
           ),
         );

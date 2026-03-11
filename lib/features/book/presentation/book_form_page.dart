@@ -70,9 +70,11 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
     _copiesCtrl.dispose();
     super.dispose();
   }
+
   String _formatAuthor(SupabaseAuthor a) {
     return a.fullName.isNotEmpty ? a.fullName : 'Tác giả #${a.id}';
   }
+
   /// Chọn ảnh từ thư viện
   Future<void> _pickImage() async {
     try {
@@ -125,7 +127,9 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
     }
 
     // Nếu đang sửa và có ảnh bìa cũ
-    if (_isEdit && widget.existing?.imageUrl != null && widget.existing!.imageUrl!.isNotEmpty) {
+    if (_isEdit &&
+        widget.existing?.imageUrl != null &&
+        widget.existing!.imageUrl!.isNotEmpty) {
       return Stack(
         fit: StackFit.expand,
         children: [
@@ -207,7 +211,8 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
 
       final year = yearRaw.isEmpty ? null : int.tryParse(yearRaw);
       final price = priceRaw.isEmpty ? null : int.tryParse(priceRaw);
-      final copies = copiesRaw.isEmpty ? 1 : int.tryParse(copiesRaw) ?? 1;      if (_isEdit) {
+      final copies = copiesRaw.isEmpty ? 1 : int.tryParse(copiesRaw) ?? 1;
+      if (_isEdit) {
         await repo.updateBookTitle(
           id: widget.existing!.id,
           title: title,
@@ -224,7 +229,7 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
           title: title,
           publishYear: year,
           price: price,
-                    categoryId: _categoryId,
+          categoryId: _categoryId,
           publisherId: _publisherId,
           description: desc.isNotEmpty ? desc : null,
           numberOfCopies: copies,
@@ -242,7 +247,8 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isEdit ? 'Cập nhật sách thành công!' : 'Thêm sách thành công!'),
+          content: Text(
+              _isEdit ? 'Cập nhật sách thành công!' : 'Thêm sách thành công!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -372,7 +378,8 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
     _publisherId =
         _publisherId != null && publishers.any((p) => p.id == _publisherId)
             ? _publisherId
-            : null;    return ListView(
+            : null;
+    return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Form(
@@ -468,7 +475,8 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
                     .map(
                       (c) => DropdownMenuItem(
                         value: c.id,
-                        child: Text(c.name.isNotEmpty ? c.name : 'Thể loại #${c.id}'),
+                        child: Text(
+                            c.name.isNotEmpty ? c.name : 'Thể loại #${c.id}'),
                       ),
                     )
                     .toList(),
@@ -506,7 +514,8 @@ class _BookFormPageState extends ConsumerState<BookFormPage> {
                     .map(
                       (p) => DropdownMenuItem(
                         value: p.id,
-                        child: Text(p.name.isNotEmpty ? p.name : 'NXB #${p.id}'),
+                        child:
+                            Text(p.name.isNotEmpty ? p.name : 'NXB #${p.id}'),
                       ),
                     )
                     .toList(),

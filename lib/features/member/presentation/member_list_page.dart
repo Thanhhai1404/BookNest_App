@@ -193,12 +193,12 @@ class _MemberListPageState extends ConsumerState<MemberListPage> {
             leading: CircleAvatar(
               backgroundImage: avatarProvider,
               child: avatarProvider == null
-                  ? Text(m.fullName.isNotEmpty ? m.fullName[0].toUpperCase() : '?')
+                  ? Text(
+                      m.fullName.isNotEmpty ? m.fullName[0].toUpperCase() : '?')
                   : null,
             ),
             title: Text(m.fullName),
-            subtitle: Text(
-                'Gói: ${m.packageName} • SĐT: ${m.phone ?? '-'}'),
+            subtitle: Text('Gói: ${m.packageName} • SĐT: ${m.phone ?? '-'}'),
             trailing: Icon(
               m.isActive == false ? Icons.lock : Icons.chevron_right,
             ),

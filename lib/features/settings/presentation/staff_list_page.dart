@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../data/db/app_database.dart';
 import 'staff_view_model.dart';
 
@@ -141,22 +142,20 @@ class _StaffCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-
-    // Role color
+    final scheme = Theme.of(context).colorScheme; // Role color
     Color roleColor;
     IconData roleIcon;
     switch (staff.role?.toLowerCase()) {
       case 'admin':
-        roleColor = Colors.red;
+        roleColor = AppTheme.errorColor;
         roleIcon = Icons.admin_panel_settings;
         break;
       case 'manager':
-        roleColor = Colors.orange;
+        roleColor = AppTheme.warningColor;
         roleIcon = Icons.manage_accounts;
         break;
       default:
-        roleColor = Colors.blue;
+        roleColor = AppTheme.primaryColor;
         roleIcon = Icons.person;
     }
 

@@ -55,7 +55,10 @@ class SupabaseEmployee {
   bool get isAdmin {
     if (position == null) return false;
     final pos = position!.toLowerCase();
-    return pos == 'quản lý' || pos == 'quan ly' || pos == 'manager' || pos == 'admin';
+    return pos == 'quản lý' ||
+        pos == 'quan ly' ||
+        pos == 'manager' ||
+        pos == 'admin';
   }
 
   /// Kiểm tra xem nhân viên có phải là Thủ thư không
@@ -82,7 +85,8 @@ class SupabaseEmployeeRepository {
           .order('tennv', ascending: true);
 
       return (response as List)
-          .map((json) => SupabaseEmployee.fromJson(json as Map<String, dynamic>))
+          .map(
+              (json) => SupabaseEmployee.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
       throw Exception('Lỗi khi lấy danh sách nhân viên: $e');
@@ -274,7 +278,8 @@ final employeesSupabaseProvider =
 });
 
 /// Provider để sinh mã nhân viên tự động
-final generateEmployeeIdProvider = FutureProvider.autoDispose<String>((ref) async {
+final generateEmployeeIdProvider =
+    FutureProvider.autoDispose<String>((ref) async {
   final repository = ref.watch(supabaseEmployeeRepositoryProvider);
   return repository.generateEmployeeId();
 });

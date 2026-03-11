@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/services/pdf_service.dart';
 import '../../reservation/data/repositories/reservation_repository.dart';
 import '../data/repositories/loan_repository.dart';
@@ -372,17 +373,16 @@ class _LoanCard extends ConsumerWidget {
                     tooltip: 'In phiếu mượn',
                   ),
                   const SizedBox(width: 8),
-                ],
-
-                // Phone call button (for overdue loans)
+                ], // Phone call button (for overdue loans)
                 if (showCallButton && item.memberPhone != null) ...[
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () =>
                           _makePhoneCall(context, item.memberPhone!),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.orange.shade700,
-                        side: BorderSide(color: Colors.orange.shade300),
+                        foregroundColor: AppTheme.warningColor,
+                        side: BorderSide(
+                            color: AppTheme.warningColor.withAlpha(150)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -552,13 +552,14 @@ class _LoanCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: AppTheme.warningColor.withAlpha(25),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border:
+                      Border.all(color: AppTheme.warningColor.withAlpha(100)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                    Icon(Icons.warning_amber, color: AppTheme.warningColor),
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
@@ -670,13 +671,13 @@ class _LoanCard extends ConsumerWidget {
           icon: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.orange.shade100,
+              color: AppTheme.warningColor.withAlpha(50),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.warning_amber_rounded,
               size: 48,
-              color: Colors.orange.shade700,
+              color: AppTheme.warningColor,
             ),
           ),
           title: const Text(
@@ -690,22 +691,23 @@ class _LoanCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: AppTheme.warningColor.withAlpha(25),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border:
+                      Border.all(color: AppTheme.warningColor.withAlpha(100)),
                 ),
                 child: Column(
                   children: [
                     Text(
                       'Sách này được đặt bởi khách:',
-                      style: TextStyle(color: Colors.grey.shade700),
+                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
                     const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.person,
-                            color: Colors.orange.shade700, size: 24),
+                            color: AppTheme.warningColor, size: 24),
                         const SizedBox(width: 8),
                         Text(
                           reservation.memberName,
@@ -754,7 +756,8 @@ class _LoanCard extends ConsumerWidget {
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.warningColor),
               child: const Text('Đã hiểu & Trả sách'),
             ),
           ],
@@ -779,7 +782,7 @@ class _LoanCard extends ConsumerWidget {
                 content: Text(
                   'Trả sách thành công! Giữ sách cho ${reservation.memberName}.',
                 ),
-                backgroundColor: Colors.orange.shade600,
+                backgroundColor: AppTheme.warningColor,
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -790,7 +793,7 @@ class _LoanCard extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Lỗi: $e'),
-              backgroundColor: Colors.red.shade600,
+              backgroundColor: AppTheme.errorColor,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -985,23 +988,23 @@ class _LoanCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: AppTheme.warningColor.withAlpha(25),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border:
+                      Border.all(color: AppTheme.warningColor.withAlpha(100)),
                 ),
                 child: Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.warning_amber,
-                            color: Colors.orange.shade700),
+                        Icon(Icons.warning_amber, color: AppTheme.warningColor),
                         const SizedBox(width: 8),
                         Text(
                           'SỐ DƯ VÍ KHÔNG ĐỦ',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade700,
+                            color: AppTheme.warningColor,
                           ),
                         ),
                       ],
@@ -1010,7 +1013,7 @@ class _LoanCard extends ConsumerWidget {
                     Text(
                       'Khoản phạt đã được ghi nhận.\nVui lòng thu tiền mặt từ hội viên.',
                       style: TextStyle(
-                        color: Colors.orange.shade700,
+                        color: AppTheme.warningColor,
                         fontSize: 13,
                       ),
                       textAlign: TextAlign.center,
@@ -1020,12 +1023,12 @@ class _LoanCard extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.receipt_long,
-                            size: 18, color: Colors.orange.shade700),
+                            size: 18, color: AppTheme.warningColor),
                         const SizedBox(width: 6),
                         Text(
                           'Xem tại: Thu Phạt → Chưa thanh toán',
                           style: TextStyle(
-                            color: Colors.orange.shade700,
+                            color: AppTheme.warningColor,
                             fontWeight: FontWeight.w500,
                             fontSize: 12,
                           ),

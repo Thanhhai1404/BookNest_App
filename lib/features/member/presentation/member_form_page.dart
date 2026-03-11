@@ -84,6 +84,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
     if (path == null) return;
     setState(() => _avatarPath = path);
   }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if ((_packageId ?? '').trim().isEmpty) {
@@ -101,9 +102,10 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
       // Phân biệt giữa local file path và URL đã có sẵn
       File? avatarFile;
       String? avatarUrl;
-      
+
       if (_avatarPath != null && _avatarPath!.isNotEmpty) {
-        if (_avatarPath!.startsWith('http://') || _avatarPath!.startsWith('https://')) {
+        if (_avatarPath!.startsWith('http://') ||
+            _avatarPath!.startsWith('https://')) {
           // Đã là URL từ Supabase, không cần upload lại
           avatarUrl = _avatarPath;
         } else {
@@ -115,13 +117,21 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
       if (_isEdit) {
         await controller.updateMember(
           id: _idCtrl.text.trim(),
-          lastName: _lastNameCtrl.text.trim().isEmpty ? null : _lastNameCtrl.text.trim(),
-          middleName: _middleNameCtrl.text.trim().isEmpty ? null : _middleNameCtrl.text.trim(),
-          firstName: _firstNameCtrl.text.trim().isEmpty ? null : _firstNameCtrl.text.trim(),
+          lastName: _lastNameCtrl.text.trim().isEmpty
+              ? null
+              : _lastNameCtrl.text.trim(),
+          middleName: _middleNameCtrl.text.trim().isEmpty
+              ? null
+              : _middleNameCtrl.text.trim(),
+          firstName: _firstNameCtrl.text.trim().isEmpty
+              ? null
+              : _firstNameCtrl.text.trim(),
           phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
           nationalId: _nationalIdCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
-          address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+          address: _addressCtrl.text.trim().isEmpty
+              ? null
+              : _addressCtrl.text.trim(),
           packageId: _packageId!,
           isActive: _isActive,
           avatarUrl: avatarUrl,
@@ -130,13 +140,21 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
       } else {
         await controller.addMember(
           id: _idCtrl.text.trim(),
-          lastName: _lastNameCtrl.text.trim().isEmpty ? null : _lastNameCtrl.text.trim(),
-          middleName: _middleNameCtrl.text.trim().isEmpty ? null : _middleNameCtrl.text.trim(),
-          firstName: _firstNameCtrl.text.trim().isEmpty ? null : _firstNameCtrl.text.trim(),
+          lastName: _lastNameCtrl.text.trim().isEmpty
+              ? null
+              : _lastNameCtrl.text.trim(),
+          middleName: _middleNameCtrl.text.trim().isEmpty
+              ? null
+              : _middleNameCtrl.text.trim(),
+          firstName: _firstNameCtrl.text.trim().isEmpty
+              ? null
+              : _firstNameCtrl.text.trim(),
           phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
           nationalId: _nationalIdCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
-          address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+          address: _addressCtrl.text.trim().isEmpty
+              ? null
+              : _addressCtrl.text.trim(),
           packageId: _packageId!,
           isActive: _isActive,
           avatarUrl: avatarUrl,
@@ -244,7 +262,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Form fields
         Form(
           key: _formKey,
@@ -271,7 +289,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 },
               ),
               const SizedBox(height: 12),
-              
+
               // Name row
               Row(
                 children: [
@@ -297,7 +315,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 ],
               ),
               const SizedBox(height: 12),
-              
+
               // First name
               TextFormField(
                 controller: _firstNameCtrl,
@@ -307,7 +325,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               // Phone
               TextFormField(
                 controller: _phoneCtrl,
@@ -324,7 +342,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 },
               ),
               const SizedBox(height: 12),
-              
+
               // Package dropdown
               DropdownButtonFormField<String>(
                 value: _packageId,
@@ -332,7 +350,8 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                     .map(
                       (p) => DropdownMenuItem(
                         value: p.id,
-                        child: Text('${p.displayName} - ${p.formattedMonthlyFee}'),
+                        child:
+                            Text('${p.displayName} - ${p.formattedMonthlyFee}'),
                       ),
                     )
                     .toList(),
@@ -347,7 +366,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 },
               ),
               const SizedBox(height: 12),
-              
+
               // Active status
               SwitchListTile.adaptive(
                 value: _isActive,
@@ -355,7 +374,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 title: const Text('Trạng thái hoạt động'),
               ),
               const SizedBox(height: 12),
-              
+
               // Email
               TextFormField(
                 controller: _emailCtrl,
@@ -371,7 +390,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 },
               ),
               const SizedBox(height: 12),
-              
+
               // National ID (CCCD)
               TextFormField(
                 controller: _nationalIdCtrl,
@@ -388,7 +407,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 },
               ),
               const SizedBox(height: 12),
-              
+
               // Address
               TextFormField(
                 controller: _addressCtrl,
@@ -399,7 +418,7 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Save button
               SizedBox(
                 width: double.infinity,
@@ -426,9 +445,10 @@ class _MemberFormPageState extends ConsumerState<MemberFormPage> {
     if (_avatarPath == null || _avatarPath!.trim().isEmpty) {
       return null;
     }
-    
+
     // Check if it's a URL (from Supabase) or local file path
-    if (_avatarPath!.startsWith('http://') || _avatarPath!.startsWith('https://')) {
+    if (_avatarPath!.startsWith('http://') ||
+        _avatarPath!.startsWith('https://')) {
       return NetworkImage(_avatarPath!);
     } else {
       return FileImage(File(_avatarPath!));

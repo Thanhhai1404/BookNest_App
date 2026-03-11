@@ -78,8 +78,10 @@ class SupabaseMember {
     // Parse thông tin gói hội viên từ join
     SupabasePackage? package;
     if (json['goi_hoi_vien'] != null && json['goi_hoi_vien'] is Map) {
-      package = SupabasePackage.fromJson(json['goi_hoi_vien'] as Map<String, dynamic>);
-    }    return SupabaseMember(
+      package = SupabasePackage.fromJson(
+          json['goi_hoi_vien'] as Map<String, dynamic>);
+    }
+    return SupabaseMember(
       id: json['madg'] as String,
       lastName: json['hodg'] as String?,
       middleName: json['tenlotdg'] as String?,
@@ -208,6 +210,7 @@ class SupabaseMemberRepository {
     *,
     goi_hoi_vien(*)
   ''';
+
   /// Lấy danh sách tất cả hội viên (kèm thông tin gói)
   Future<List<SupabaseMember>> getMembers() async {
     try {
@@ -223,6 +226,7 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi lấy danh sách hội viên: $e');
     }
   }
+
   /// Tìm kiếm hội viên theo từ khóa (tên, SĐT, mã)
   Future<List<SupabaseMember>> searchMembers(String keyword) async {
     try {
@@ -239,6 +243,7 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi tìm kiếm hội viên: $e');
     }
   }
+
   /// Lấy hội viên theo ID
   Future<SupabaseMember?> getMemberById(String id) async {
     try {
@@ -254,6 +259,7 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi lấy hội viên: $e');
     }
   }
+
   /// Thêm hội viên mới
   /// [avatarFile] - File avatar (optional), sẽ được upload lên Storage
   /// [employeeId] - Mã nhân viên thực hiện (optional, để ghi log)
@@ -281,7 +287,8 @@ class SupabaseMemberRepository {
       String? finalAvatarUrl = avatarUrl;
       if (avatarFile != null) {
         finalAvatarUrl = await uploadAvatar(avatarFile);
-      }      final response = await _client
+      }
+      final response = await _client
           .from(_tableName)
           .insert({
             'madg': id,
@@ -313,7 +320,8 @@ class SupabaseMemberRepository {
       await activityLogRepo.addLog(
         module: ActivityModule.hoiVien,
         actionType: 'Thêm hội viên',
-        content: 'Thêm hội viên mới: $id${fullName.isNotEmpty ? ' - $fullName' : ''}.',
+        content:
+            'Thêm hội viên mới: $id${fullName.isNotEmpty ? ' - $fullName' : ''}.',
         employeeId: employeeId,
         memberId: id.trim(),
         referenceId: id,
@@ -324,6 +332,7 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi thêm hội viên: $e');
     }
   }
+
   /// Cập nhật hội viên
   /// [avatarFile] - File avatar mới (optional), sẽ được upload lên Storage
   Future<SupabaseMember> updateMember({
@@ -355,7 +364,8 @@ class SupabaseMemberRepository {
       if (lastName != null) updateData['hodg'] = lastName;
       if (middleName != null) updateData['tenlotdg'] = middleName;
       if (firstName != null) updateData['tendg'] = firstName;
-      if (dateOfBirth != null) updateData['ngaysinh'] = dateOfBirth.toIso8601String();
+      if (dateOfBirth != null)
+        updateData['ngaysinh'] = dateOfBirth.toIso8601String();
       if (phone != null) updateData['sdt'] = phone;
       if (nationalId != null) updateData['cccd'] = nationalId;
       if (email != null) updateData['email'] = email;
@@ -396,14 +406,15 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi xóa hội viên: $e');
     }
   }
+
   /// Nạp tiền vào ví
   /// Bước 1: Lấy số dư hiện tại và cộng thêm amount, update vào bảng doc_gia
   /// Bước 2: Insert một dòng vào bảng giao_dich_vi
   /// Bước 3: Ghi log nhật ký hoạt động
-  /// 
+  ///
   /// [employeeId]: Mã nhân viên thực hiện (optional, để ghi log)
   Future<SupabaseMember> topUpWallet(
-    String memberId, 
+    String memberId,
     int amount, {
     String? employeeId,
   }) async {
@@ -421,7 +432,8 @@ class SupabaseMemberRepository {
       final newBalance = member.walletBalance + amount;
 
       // Update số dư trong bảng doc_gia
-      final updatedMember = await updateMember(id: memberId, walletBalance: newBalance);
+      final updatedMember =
+          await updateMember(id: memberId, walletBalance: newBalance);
 
       // Bước 2: Insert giao dịch vào bảng giao_dich_vi
       await _client.from('giao_dich_vi').insert({
@@ -437,7 +449,8 @@ class SupabaseMemberRepository {
       await activityLogRepo.addLog(
         module: ActivityModule.viTien,
         actionType: 'Nạp tiền ví',
-        content: 'Nạp ${_formatCurrency(amount)} VNĐ vào ví của độc giả $memberId.',
+        content:
+            'Nạp ${_formatCurrency(amount)} VNĐ vào ví của độc giả $memberId.',
         employeeId: employeeId,
         memberId: memberId.trim(),
       );
@@ -447,19 +460,20 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi nạp tiền: $e');
     }
   }
-  
+
   /// Helper format tiền tệ
   String _formatCurrency(int amount) {
     return amount.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]}.',
-    );
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]}.',
+        );
   }
+
   /// Trừ tiền từ ví
   /// Bước 1: Kiểm tra số dư và trừ tiền, update vào bảng doc_gia
   /// Bước 2: Insert giao dịch vào bảng giao_dich_vi
   Future<SupabaseMember> deductWallet(
-    String memberId, 
+    String memberId,
     int amount, {
     bool allowNegative = false,
     String transactionType = 'Thanh toán',
@@ -477,13 +491,15 @@ class SupabaseMemberRepository {
       }
 
       if (!allowNegative && member.walletBalance < amount) {
-        throw StateError('Số dư không đủ. Hiện có: ${member.walletBalance} VNĐ');
+        throw StateError(
+            'Số dư không đủ. Hiện có: ${member.walletBalance} VNĐ');
       }
 
       final newBalance = member.walletBalance - amount;
 
       // Update số dư trong bảng doc_gia
-      final updatedMember = await updateMember(id: memberId, walletBalance: newBalance);
+      final updatedMember =
+          await updateMember(id: memberId, walletBalance: newBalance);
 
       // Bước 2: Insert giao dịch vào bảng giao_dich_vi
       await _client.from('giao_dich_vi').insert({
@@ -516,6 +532,7 @@ class SupabaseMemberRepository {
       throw Exception('Lỗi khi cập nhật điểm: $e');
     }
   }
+
   /// Tạo mã hội viên mới
   Future<String> generateNextMemberId() async {
     try {
@@ -551,12 +568,11 @@ class SupabaseMemberRepository {
       return 'DG${DateTime.now().millisecondsSinceEpoch % 10000}';
     }
   }
+
   /// Đếm tổng số hội viên
   Future<int> countMembers() async {
     try {
-      final response = await _client
-          .from(_tableName)
-          .select('madg');
+      final response = await _client.from(_tableName).select('madg');
       return (response as List).length;
     } catch (e) {
       throw Exception('Lỗi khi đếm hội viên: $e');
@@ -567,10 +583,11 @@ class SupabaseMemberRepository {
   Future<Map<String, int>> getMemberStatistics() async {
     try {
       final allMembers = await getMembers();
-      
+
       final activeCount = allMembers.where((m) => m.isActive).length;
       final inactiveCount = allMembers.where((m) => !m.isActive).length;
-      final expiredCount = allMembers.where((m) => !m.isSubscriptionActive).length;
+      final expiredCount =
+          allMembers.where((m) => !m.isSubscriptionActive).length;
 
       return {
         'total': allMembers.length,
@@ -585,18 +602,21 @@ class SupabaseMemberRepository {
 }
 
 /// Provider cho SupabaseMemberRepository
-final supabaseMemberRepositoryProvider = Provider<SupabaseMemberRepository>((ref) {
+final supabaseMemberRepositoryProvider =
+    Provider<SupabaseMemberRepository>((ref) {
   return SupabaseMemberRepository(Supabase.instance.client);
 });
 
 /// Provider để lấy danh sách hội viên
-final supabaseMembersProvider = FutureProvider<List<SupabaseMember>>((ref) async {
+final supabaseMembersProvider =
+    FutureProvider<List<SupabaseMember>>((ref) async {
   final repository = ref.watch(supabaseMemberRepositoryProvider);
   return repository.getMembers();
 });
 
 /// Provider để tìm kiếm hội viên
-final supabaseMemberSearchProvider = FutureProvider.family<List<SupabaseMember>, String>((ref, keyword) async {
+final supabaseMemberSearchProvider =
+    FutureProvider.family<List<SupabaseMember>, String>((ref, keyword) async {
   final repository = ref.watch(supabaseMemberRepositoryProvider);
   if (keyword.isEmpty) {
     return repository.getMembers();
@@ -605,7 +625,8 @@ final supabaseMemberSearchProvider = FutureProvider.family<List<SupabaseMember>,
 });
 
 /// Provider để lấy hội viên theo ID
-final supabaseMemberByIdProvider = FutureProvider.family<SupabaseMember?, String>((ref, id) async {
+final supabaseMemberByIdProvider =
+    FutureProvider.family<SupabaseMember?, String>((ref, id) async {
   final repository = ref.watch(supabaseMemberRepositoryProvider);
   return repository.getMemberById(id);
 });

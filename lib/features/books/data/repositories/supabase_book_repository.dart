@@ -34,7 +34,8 @@ class SupabaseBookTitle {
     this.publisherId,
     this.publisherName,
     this.imageUrl,
-  });  factory SupabaseBookTitle.fromJson(Map<String, dynamic> json) {
+  });
+  factory SupabaseBookTitle.fromJson(Map<String, dynamic> json) {
     // Xử lý join với bảng the_loai (lowercase column names)
     String? categoryName;
     if (json['the_loai'] != null && json['the_loai'] is Map) {
@@ -68,7 +69,8 @@ class SupabaseBookTitle {
       publisherName: publisherName ?? 'Chưa có NXB',
       imageUrl: json['anhbia'] as String?,
     );
-  }  Map<String, dynamic> toInsertJson() {
+  }
+  Map<String, dynamic> toInsertJson() {
     return {
       'mads': id,
       'tensach': title,
@@ -107,7 +109,8 @@ class SupabaseBookCopy {
   factory SupabaseBookCopy.fromJson(Map<String, dynamic> json) {
     SupabaseBookTitle? bookTitle;
     if (json['dau_sach'] != null && json['dau_sach'] is Map) {
-      bookTitle = SupabaseBookTitle.fromJson(json['dau_sach'] as Map<String, dynamic>);
+      bookTitle =
+          SupabaseBookTitle.fromJson(json['dau_sach'] as Map<String, dynamic>);
     }
 
     // Helper để parse số
@@ -302,7 +305,8 @@ class SupabaseBookRepository {
   }
 
   /// Lấy đầu sách theo thể loại
-  Future<List<SupabaseBookTitle>> getBookTitlesByCategory(int categoryId) async {
+  Future<List<SupabaseBookTitle>> getBookTitlesByCategory(
+      int categoryId) async {
     try {
       final response = await _client
           .from(_bookTitleTable)
@@ -316,7 +320,9 @@ class SupabaseBookRepository {
     } catch (e) {
       throw Exception('Lỗi khi lấy sách theo thể loại: $e');
     }
-  }/// Thêm đầu sách mới
+  }
+
+  /// Thêm đầu sách mới
   /// [numberOfCopies] - Số lượng bản sao cần tạo
   /// [coverImage] - File ảnh bìa (optional)
   Future<SupabaseBookTitle> addBookTitle({
@@ -374,7 +380,9 @@ class SupabaseBookRepository {
     } catch (e) {
       throw Exception('Lỗi khi thêm đầu sách: $e');
     }
-  }  /// Cập nhật đầu sách
+  }
+
+  /// Cập nhật đầu sách
   Future<SupabaseBookTitle> updateBookTitle({
     required String id,
     String? title,
@@ -425,6 +433,7 @@ class SupabaseBookRepository {
       throw Exception('Lỗi khi cập nhật đầu sách: $e');
     }
   }
+
   /// Xóa đầu sách (và tất cả bản sao)
   Future<void> deleteBookTitle(String id) async {
     try {
@@ -505,6 +514,7 @@ class SupabaseBookRepository {
       throw Exception('Lỗi khi lấy bản sao sẵn sàng: $e');
     }
   }
+
   /// Thêm bản sao mới
   Future<SupabaseBookCopy> addBookCopy({
     required String barcode,
@@ -606,6 +616,7 @@ class SupabaseBookRepository {
       throw Exception('Lỗi khi xóa bản sao: $e');
     }
   }
+
   /// Cập nhật số lượng sách trong đầu sách
   Future<void> _updateBookTitleCounts(String bookTitleId) async {
     try {
@@ -630,8 +641,7 @@ class SupabaseBookRepository {
   Future<Map<String, int>> getBookStatistics() async {
     try {
       // Đếm tổng đầu sách
-      final titlesResponse =
-          await _client.from(_bookTitleTable).select('mads');
+      final titlesResponse = await _client.from(_bookTitleTable).select('mads');
       final totalTitles = (titlesResponse as List).length;
 
       // Đếm tổng bản sao

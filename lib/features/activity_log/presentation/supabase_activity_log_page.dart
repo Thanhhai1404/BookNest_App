@@ -13,7 +13,7 @@ class SupabaseActivityLogPage extends ConsumerWidget {
     final filterDate = ref.watch(activityLogDateFilterProvider);
     final filterModule = ref.watch(activityLogModuleFilterProvider);
     final groupedLogs = ref.watch(groupedActivityLogsProvider);
-    
+
     final hasFilter = filterDate != null || filterModule != null;
 
     return Scaffold(
@@ -77,8 +77,10 @@ class SupabaseActivityLogPage extends ConsumerWidget {
                   ),
                   InkWell(
                     onTap: () {
-                      ref.read(activityLogDateFilterProvider.notifier).state = null;
-                      ref.read(activityLogModuleFilterProvider.notifier).state = null;
+                      ref.read(activityLogDateFilterProvider.notifier).state =
+                          null;
+                      ref.read(activityLogModuleFilterProvider.notifier).state =
+                          null;
                     },
                     child: Icon(
                       Icons.close_rounded,
@@ -89,7 +91,7 @@ class SupabaseActivityLogPage extends ConsumerWidget {
                 ],
               ),
             ),
-          
+
           // Content
           Expanded(
             child: logsAsync.when(
@@ -132,7 +134,7 @@ class SupabaseActivityLogPage extends ConsumerWidget {
 
                 // Build grouped list
                 final dateKeys = groupedLogs.keys.toList();
-                
+
                 return RefreshIndicator(
                   onRefresh: () async {
                     ref.invalidate(activityLogsProvider);
@@ -143,7 +145,7 @@ class SupabaseActivityLogPage extends ConsumerWidget {
                     itemBuilder: (context, index) {
                       final dateKey = dateKeys[index];
                       final logsForDate = groupedLogs[dateKey] ?? [];
-                      
+
                       return _buildDateSection(
                         context,
                         dateKey,
@@ -159,11 +161,14 @@ class SupabaseActivityLogPage extends ConsumerWidget {
         ],
       ),
     );
-  }  Widget _buildEmptyState(BuildContext context, DateTime? filterDate, WidgetRef ref) {
+  }
+
+  Widget _buildEmptyState(
+      BuildContext context, DateTime? filterDate, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final filterModule = ref.watch(activityLogModuleFilterProvider);
     final hasFilter = filterDate != null || filterModule != null;
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -200,19 +205,18 @@ class SupabaseActivityLogPage extends ConsumerWidget {
   }
 
   Widget _buildDateSection(
-    BuildContext context,
-    String dateKey,
-    List<ActivityLog> logs,
-    {bool isFirst = false}
-  ) {
+      BuildContext context, String dateKey, List<ActivityLog> logs,
+      {bool isFirst = false}) {
     final scheme = Theme.of(context).colorScheme;
-    
+
     // Kiểm tra xem có phải hôm nay không
     final today = DateTime.now();
-    final todayKey = '${today.day.toString().padLeft(2, '0')}/${today.month.toString().padLeft(2, '0')}/${today.year}';
+    final todayKey =
+        '${today.day.toString().padLeft(2, '0')}/${today.month.toString().padLeft(2, '0')}/${today.year}';
     final yesterday = today.subtract(const Duration(days: 1));
-    final yesterdayKey = '${yesterday.day.toString().padLeft(2, '0')}/${yesterday.month.toString().padLeft(2, '0')}/${yesterday.year}';
-    
+    final yesterdayKey =
+        '${yesterday.day.toString().padLeft(2, '0')}/${yesterday.month.toString().padLeft(2, '0')}/${yesterday.year}';
+
     String displayDate;
     if (dateKey == todayKey) {
       displayDate = 'Hôm nay';
@@ -237,7 +241,8 @@ class SupabaseActivityLogPage extends ConsumerWidget {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: scheme.secondaryContainer,
                   borderRadius: BorderRadius.circular(16),
@@ -262,12 +267,13 @@ class SupabaseActivityLogPage extends ConsumerWidget {
             ],
           ),
         ),
-        
+
         // Log items
         ...logs.map((log) => _ActivityLogTile(log: log)),
       ],
     );
   }
+
   Future<void> _showDatePicker(
     BuildContext context,
     WidgetRef ref,
@@ -324,7 +330,9 @@ class SupabaseActivityLogPage extends ConsumerWidget {
                     if (currentModule != null)
                       TextButton(
                         onPressed: () {
-                          ref.read(activityLogModuleFilterProvider.notifier).state = null;
+                          ref
+                              .read(activityLogModuleFilterProvider.notifier)
+                              .state = null;
                           Navigator.pop(context);
                         },
                         child: const Text('Xóa lọc'),
@@ -334,16 +342,18 @@ class SupabaseActivityLogPage extends ConsumerWidget {
               ),
               const Divider(height: 1),
               ...modules.map((module) => ListTile(
-                leading: Text(module.$3, style: const TextStyle(fontSize: 24)),
-                title: Text(module.$2),
-                trailing: currentModule == module.$1
-                    ? const Icon(Icons.check_rounded, color: Colors.green)
-                    : null,
-                onTap: () {
-                  ref.read(activityLogModuleFilterProvider.notifier).state = module.$1;
-                  Navigator.pop(context);
-                },
-              )),
+                    leading:
+                        Text(module.$3, style: const TextStyle(fontSize: 24)),
+                    title: Text(module.$2),
+                    trailing: currentModule == module.$1
+                        ? const Icon(Icons.check_rounded, color: Colors.green)
+                        : null,
+                    onTap: () {
+                      ref.read(activityLogModuleFilterProvider.notifier).state =
+                          module.$1;
+                      Navigator.pop(context);
+                    },
+                  )),
               const SizedBox(height: 16),
             ],
           ),
@@ -354,11 +364,11 @@ class SupabaseActivityLogPage extends ConsumerWidget {
 
   String _buildFilterText(DateTime? filterDate, String? filterModule) {
     final parts = <String>[];
-    
+
     if (filterDate != null) {
       parts.add(DateFormat('dd/MM/yyyy').format(filterDate));
     }
-    
+
     if (filterModule != null) {
       String moduleName;
       switch (filterModule) {
@@ -385,7 +395,7 @@ class SupabaseActivityLogPage extends ConsumerWidget {
       }
       parts.add(moduleName);
     }
-    
+
     return 'Đang lọc: ${parts.join(' • ')}';
   }
 }
@@ -434,7 +444,7 @@ class _ActivityLogTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
+
                 // Content
                 Expanded(
                   child: Column(
@@ -484,8 +494,9 @@ class _ActivityLogTile extends StatelessWidget {
                             ),
                           ),
                         ],
-                      ),                      const SizedBox(height: 6),
-                      
+                      ),
+                      const SizedBox(height: 6),
+
                       // Content (nội dung)
                       if (log.content.isNotEmpty)
                         Text(
@@ -497,13 +508,14 @@ class _ActivityLogTile extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      
+
                       const SizedBox(height: 4),
-                      
+
                       // Employee + Member info
                       Row(
                         children: [
-                          if (log.employeeName != null || log.employeeId != null) ...[
+                          if (log.employeeName != null ||
+                              log.employeeId != null) ...[
                             Icon(
                               Icons.badge_outlined,
                               size: 14,
@@ -522,13 +534,15 @@ class _ActivityLogTile extends StatelessWidget {
                               ),
                             ),
                           ],
-                          if ((log.memberName != null || log.memberId != null) && 
+                          if ((log.memberName != null ||
+                                  log.memberId != null) &&
                               (log.employeeId != null)) ...[
                             const SizedBox(width: 8),
                             Text('•', style: TextStyle(color: scheme.outline)),
                             const SizedBox(width: 8),
                           ],
-                          if (log.memberName != null || log.memberId != null) ...[
+                          if (log.memberName != null ||
+                              log.memberId != null) ...[
                             Icon(
                               Icons.person_outline_rounded,
                               size: 14,
@@ -559,6 +573,7 @@ class _ActivityLogTile extends StatelessWidget {
       ),
     );
   }
+
   void _showDetailDialog(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final moduleColor = Color(log.moduleColorValue);
@@ -603,7 +618,7 @@ class _ActivityLogTile extends StatelessWidget {
                 Icons.access_time_rounded,
               ),
               const SizedBox(height: 12),
-              
+
               // Nhân viên
               if (log.employeeId != null)
                 _buildDetailRow(
@@ -613,7 +628,7 @@ class _ActivityLogTile extends StatelessWidget {
                   Icons.badge_rounded,
                 ),
               if (log.employeeId != null) const SizedBox(height: 12),
-              
+
               // Độc giả liên quan
               if (log.memberId != null)
                 _buildDetailRow(
@@ -623,7 +638,7 @@ class _ActivityLogTile extends StatelessWidget {
                   Icons.person_rounded,
                 ),
               if (log.memberId != null) const SizedBox(height: 12),
-              
+
               // Mã tham chiếu
               if (log.referenceId != null && log.referenceId!.isNotEmpty)
                 _buildDetailRow(
@@ -632,9 +647,9 @@ class _ActivityLogTile extends StatelessWidget {
                   log.referenceId!,
                   Icons.tag_rounded,
                 ),
-              if (log.referenceId != null && log.referenceId!.isNotEmpty) 
+              if (log.referenceId != null && log.referenceId!.isNotEmpty)
                 const SizedBox(height: 12),
-              
+
               // Nội dung
               if (log.content.isNotEmpty) ...[
                 Text(
@@ -680,7 +695,7 @@ class _ActivityLogTile extends StatelessWidget {
     IconData icon,
   ) {
     final scheme = Theme.of(context).colorScheme;
-    
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

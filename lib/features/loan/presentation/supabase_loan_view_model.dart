@@ -21,7 +21,7 @@ class SupabaseAvailableCopyInfo {
     if (json['dau_sach'] != null && json['dau_sach'] is Map) {
       bookTitle = json['dau_sach']['tensach'] as String?;
     }
-    
+
     return SupabaseAvailableCopyInfo(
       barcode: json['mavach'] as String,
       bookTitle: bookTitle ?? json['mavach'] as String,
@@ -79,7 +79,7 @@ class SupabaseLoanViewModel extends AsyncNotifier<SupabaseLoanListState> {
   }
 
   /// Tạo phiếu mượn sách
-  /// 
+  ///
   /// [memberId]: Mã độc giả
   /// [barcodes]: Danh sách mã vạch sách cần mượn
   /// [dueDate]: Ngày hẹn trả
@@ -175,8 +175,7 @@ String formatMemberNameFromJson(Map<String, dynamic> json) {
   final ho = (json['hodg'] ?? '') as String;
   final tenLot = (json['tenlotdg'] ?? '') as String;
   final ten = (json['tendg'] ?? '') as String;
-  final fullName = [ho, tenLot, ten]
-      .where((e) => e.trim().isNotEmpty)
-      .join(' ');
+  final fullName =
+      [ho, tenLot, ten].where((e) => e.trim().isNotEmpty).join(' ');
   return fullName.isEmpty ? json['madg'] as String : fullName;
 }

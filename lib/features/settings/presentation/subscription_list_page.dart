@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../data/db/app_database.dart';
 import '../../../data/repositories/subscription_repository.dart';
 import 'subscription_view_model.dart';
@@ -143,17 +144,16 @@ class _SubscriptionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final sub = item.subscription;
-
-    // Determine card color based on subscription type
+    final sub =
+        item.subscription; // Determine card color based on subscription type
     Color cardColor;
     IconData cardIcon;
     if (sub.id.toLowerCase().contains('vip') ||
         (sub.monthlyFee ?? 0) > 100000) {
-      cardColor = Colors.amber.shade700;
+      cardColor = AppTheme.warningColor;
       cardIcon = Icons.star;
     } else if (sub.id.toLowerCase().contains('premium')) {
-      cardColor = Colors.purple.shade600;
+      cardColor = AppTheme.primaryColor;
       cardIcon = Icons.workspace_premium;
     } else {
       cardColor = scheme.primary;
@@ -242,7 +242,7 @@ class _SubscriptionCard extends ConsumerWidget {
                     icon: Icons.calendar_today,
                     label: 'Giới hạn ngày',
                     value: '${sub.maxDays ?? "∞"} ngày',
-                    color: Colors.orange,
+                    color: AppTheme.warningColor,
                   ),
                 ),
               ],
@@ -257,7 +257,7 @@ class _SubscriptionCard extends ConsumerWidget {
                     value: sub.monthlyFee != null
                         ? '${_currencyFormat.format(sub.monthlyFee)}đ'
                         : 'Miễn phí',
-                    color: Colors.green,
+                    color: AppTheme.successColor,
                   ),
                 ),
                 Expanded(

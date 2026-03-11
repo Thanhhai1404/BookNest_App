@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/supabase_auth_provider.dart';
-import '../../home/presentation/home_page.dart';
+import '../../home/presentation/admin_main_page.dart';
 import 'supabase_login_page.dart';
 
 /// Widget that handles authentication state and routing.
 ///
 /// Shows [SupabaseLoginPage] if user is not authenticated.
-/// Shows [HomePage] if user is authenticated.
+/// Shows [AdminMainPage] if user is authenticated.
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
@@ -23,7 +23,7 @@ class AuthGate extends ConsumerWidget {
 
     // Kiểm tra đăng nhập
     if (authState.isLoggedIn) {
-      return const HomePage();
+      return const AdminMainPage();
     } else {
       return const SupabaseLoginPage();
     }

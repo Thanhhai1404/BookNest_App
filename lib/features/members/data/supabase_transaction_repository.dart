@@ -7,7 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Cột: magd (PK auto-increment), loaigiaodich, sotien, ngaygiaodich, noidung, madg
 class SupabaseTransaction {
   final int id; // MaGD - auto-increment
-  final String type; // LoaiGiaoDich: 'Nạp tiền', 'Thanh toán', 'Hoàn tiền', etc.
+  final String
+      type; // LoaiGiaoDich: 'Nạp tiền', 'Thanh toán', 'Hoàn tiền', etc.
   final int amount; // SoTien (Decimal trong DB nhưng parse thành int)
   final DateTime? transactionDate; // NgayGiaoDich
   final String? description; // NoiDung
@@ -53,14 +54,16 @@ class SupabaseTransaction {
     return {
       'loaigiaodich': type,
       'sotien': amount,
-      'ngaygiaodich': transactionDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
+      'ngaygiaodich': transactionDate?.toIso8601String() ??
+          DateTime.now().toIso8601String(),
       'noidung': description,
       'madg': memberId,
     };
   }
 
   /// Kiểm tra đây có phải giao dịch nạp tiền không
-  bool get isCredit => type == 'Nạp tiền' || type == 'Hoàn tiền' || type == 'Thưởng';
+  bool get isCredit =>
+      type == 'Nạp tiền' || type == 'Hoàn tiền' || type == 'Thưởng';
 
   /// Lấy icon color dựa trên loại giao dịch
   String get displayType {

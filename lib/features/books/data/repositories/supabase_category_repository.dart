@@ -18,7 +18,7 @@ class SupabaseCategory {
       if (value is num) return value.toInt();
       return int.tryParse(value.toString()) ?? 0;
     }
-    
+
     return SupabaseCategory(
       id: parseId(json['matl']),
       name: json['tentl'] as String? ?? '',
@@ -38,6 +38,7 @@ class SupabaseCategoryRepository {
 
   final SupabaseClient _client;
   static const String _tableName = 'the_loai';
+
   /// Lấy tất cả thể loại
   Future<List<SupabaseCategory>> getCategories() async {
     try {
@@ -100,6 +101,7 @@ class SupabaseCategoryRepository {
       throw Exception('Lỗi khi cập nhật thể loại: $e');
     }
   }
+
   /// Xóa thể loại
   Future<void> deleteCategory(int id) async {
     try {

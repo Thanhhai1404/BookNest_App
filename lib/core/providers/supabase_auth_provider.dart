@@ -24,7 +24,8 @@ class AuthState {
     bool clearEmployee = false,
   }) {
     return AuthState(
-      currentEmployee: clearEmployee ? null : (currentEmployee ?? this.currentEmployee),
+      currentEmployee:
+          clearEmployee ? null : (currentEmployee ?? this.currentEmployee),
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -83,7 +84,8 @@ class AuthNotifier extends Notifier<AuthState> {
         isLoading: false,
         error: 'Lỗi đăng nhập: ${e.toString().replaceAll('Exception: ', '')}',
       );
-      throw Exception('Lỗi đăng nhập: ${e.toString().replaceAll('Exception: ', '')}');
+      throw Exception(
+          'Lỗi đăng nhập: ${e.toString().replaceAll('Exception: ', '')}');
     }
   }
 
@@ -100,7 +102,8 @@ class AuthNotifier extends Notifier<AuthState> {
 }
 
 /// Provider cho AuthNotifier
-final authProvider = NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
+final authProvider =
+    NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
 
 /// Provider tiện ích để lấy nhân viên hiện tại
 final currentEmployeeProvider = Provider<SupabaseEmployee?>((ref) {

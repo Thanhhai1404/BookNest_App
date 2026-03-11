@@ -30,7 +30,9 @@ class SupabasePackage {
       if (value is int) return value;
       if (value is num) return value.toInt();
       return int.tryParse(value.toString());
-    }    return SupabasePackage(
+    }
+
+    return SupabasePackage(
       id: json['magoi'] as String,
       name: json['tengoi'] as String?,
       monthlyFee: parseIntOrNull(json['phithang']),
@@ -86,6 +88,7 @@ class PackageRepository {
   final SupabaseClient _client;
 
   static const String _tableName = 'goi_hoi_vien';
+
   /// Lấy danh sách tất cả gói hội viên
   Future<List<SupabasePackage>> getPackages() async {
     try {
@@ -101,14 +104,12 @@ class PackageRepository {
       throw Exception('Lỗi khi lấy danh sách gói hội viên: $e');
     }
   }
+
   /// Lấy gói theo ID
   Future<SupabasePackage?> getPackageById(String id) async {
     try {
-      final response = await _client
-          .from(_tableName)
-          .select()
-          .eq('magoi', id)
-          .maybeSingle();
+      final response =
+          await _client.from(_tableName).select().eq('magoi', id).maybeSingle();
 
       if (response == null) return null;
       return SupabasePackage.fromJson(response);
@@ -127,7 +128,8 @@ class PackageRepository {
     int? maxDays,
     String? description,
   }) async {
-    try {      final response = await _client
+    try {
+      final response = await _client
           .from(_tableName)
           .insert({
             'magoi': id,
@@ -156,7 +158,8 @@ class PackageRepository {
     int? maxBooks,
     int? maxDays,
     String? description,
-  }) async {    try {
+  }) async {
+    try {
       final updateData = <String, dynamic>{};
       if (name != null) updateData['tengoi'] = name;
       if (monthlyFee != null) updateData['phithang'] = monthlyFee;
@@ -169,7 +172,8 @@ class PackageRepository {
         final current = await getPackageById(id);
         if (current == null) throw Exception('Không tìm thấy gói hội viên');
         return current;
-      }      final response = await _client
+      }
+      final response = await _client
           .from(_tableName)
           .update(updateData)
           .eq('magoi', id)

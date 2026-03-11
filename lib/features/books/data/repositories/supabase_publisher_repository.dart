@@ -20,7 +20,7 @@ class SupabasePublisher {
       if (value is num) return value.toInt();
       return int.tryParse(value.toString()) ?? 0;
     }
-    
+
     return SupabasePublisher(
       id: parseId(json['manxb']),
       name: json['tennxb'] as String? ?? '',
@@ -35,6 +35,7 @@ class SupabasePublisherRepository {
 
   final SupabaseClient _client;
   static const String _tableName = 'nha_xuat_ban';
+
   /// Lấy tất cả nhà xuất bản
   Future<List<SupabasePublisher>> getPublishers() async {
     try {

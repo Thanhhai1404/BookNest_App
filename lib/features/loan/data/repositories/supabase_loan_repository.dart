@@ -60,12 +60,12 @@ class SupabaseLoan {
       final ho = (docGia['hodg'] ?? '') as String;
       final tenLot = (docGia['tenlotdg'] ?? '') as String;
       final ten = (docGia['tendg'] ?? '') as String;
-      memberName = [ho, tenLot, ten]
-          .where((e) => e.trim().isNotEmpty)
-          .join(' ');
+      memberName =
+          [ho, tenLot, ten].where((e) => e.trim().isNotEmpty).join(' ');
       if (memberName.isEmpty) memberName = docGia['madg'] as String?;
       memberPhone = docGia['sdt'] as String?;
-    }    return SupabaseLoan(
+    }
+    return SupabaseLoan(
       id: json['mapm'] as String,
       borrowDate: parseDateTime(json['ngaymuon']),
       note: json['ghichu'] as String?,
@@ -75,7 +75,8 @@ class SupabaseLoan {
       memberName: memberName,
       memberPhone: memberPhone,
     );
-  }  Map<String, dynamic> toInsertJson() {
+  }
+  Map<String, dynamic> toInsertJson() {
     return {
       'mapm': id,
       'ngaymuon': borrowDate?.toIso8601String(),
@@ -89,7 +90,7 @@ class SupabaseLoan {
 
 /// Model cho Chi tiết mượn (Loan detail) từ Supabase
 /// Mapping với bảng: chi_tiet_muon
-/// Cột: mapm + mavach (composite PK), ngayhentra, ngaytrathucte, 
+/// Cột: mapm + mavach (composite PK), ngayhentra, ngaytrathucte,
 ///      tinhtrangsachkhitra, tienphatphatsinh, trangthai
 class SupabaseLoanDetail {
   final String loanId; // MaPhieuMuon
@@ -144,21 +145,24 @@ class SupabaseLoanDetail {
       final sach = json['sach'] as Map<String, dynamic>;
       bookTitleId = sach['mads'] as String?;
       location = sach['vitri'] as String?;
-      
+
       // Nếu có join thêm với dau_sach
       if (sach['dau_sach'] != null && sach['dau_sach'] is Map) {
         final dauSach = sach['dau_sach'] as Map<String, dynamic>;
         bookTitle = dauSach['tensach'] as String?;
       }
-    }    return SupabaseLoanDetail(
+    }
+    return SupabaseLoanDetail(
       loanId: json['mapm'] as String,
       barcode: json['mavach'] as String,
       dueDate: parseDateTime(json['ngayhentra']),
       returnDate: parseDateTime(json['ngaytrathucte']),
-      bookConditionOnReturn: json['tinhtrangsachkhitra'] as String?,      fineAmount: parseIntOrDefault(json['tienphatphatsinh'], 0),
+      bookConditionOnReturn: json['tinhtrangsachkhitra'] as String?,
+      fineAmount: parseIntOrDefault(json['tienphatphatsinh'], 0),
       status: parseIntOrDefault(json['trangthai'], 0),
       // Cột solangiahan có thể chưa tồn tại trong DB - mặc định 0
-      renewalCount: parseIntOrDefault(json['solangiahan'] ?? json['so_lan_gia_han'], 0),
+      renewalCount:
+          parseIntOrDefault(json['solangiahan'] ?? json['so_lan_gia_han'], 0),
       bookTitle: bookTitle,
       bookTitleId: bookTitleId,
       location: location,
@@ -187,7 +191,8 @@ class SupabaseLoanDetail {
   bool get isOverdue => overdueDays > 0;
 
   /// Có thể gia hạn không
-  bool get canRenew => returnDate == null && renewalCount < kSupabaseMaxRenewals;
+  bool get canRenew =>
+      returnDate == null && renewalCount < kSupabaseMaxRenewals;
 }
 
 /// DTO kết hợp Phiếu mượn với Chi tiết
@@ -204,7 +209,8 @@ class SupabaseLoanWithDetails {
   int get activeBooksCount => details.where((d) => d.returnDate == null).length;
 
   /// Tổng số sách đã trả
-  int get returnedBooksCount => details.where((d) => d.returnDate != null).length;
+  int get returnedBooksCount =>
+      details.where((d) => d.returnDate != null).length;
 
   /// Có sách quá hạn không
   bool get hasOverdueBooks => details.any((d) => d.isOverdue);
@@ -257,12 +263,12 @@ class SupabaseLoanRepository {
   }
 
   /// Tạo phiếu mượn mới
-  /// 
+  ///
   /// [maDG]: Mã độc giả (member ID)
   /// [maVachList]: Danh sách mã vạch sách cần mượn
   /// [ngayHenTra]: Ngày hẹn trả
   /// [maNV]: Mã nhân viên (staff ID), mặc định 'NV001'
-  /// 
+  ///
   /// Logic:
   /// 1. Lấy mã thẻ thành viên từ bảng the_thanh_vien
   /// 2. Insert vào phieu_muon
@@ -293,7 +299,8 @@ class SupabaseLoanRepository {
       }
 
       final soduvi = (memberResponse['soduvi'] as num?)?.toInt() ?? 0;
-      final goiHoiVien = memberResponse['goi_hoi_vien'] as Map<String, dynamic>?;
+      final goiHoiVien =
+          memberResponse['goi_hoi_vien'] as Map<String, dynamic>?;
       final tiencoc = (goiHoiVien?['tiencoc'] as num?)?.toInt() ?? 0;
       final sosachtoida = (goiHoiVien?['sosachtoida'] as num?)?.toInt() ?? 5;
 
@@ -310,9 +317,8 @@ class SupabaseLoanRepository {
       final tongSachSauKhiMuon = soSachDangMuon + maVachList.length;
       if (tongSachSauKhiMuon > sosachtoida) {
         throw Exception(
-          'Vượt quá giới hạn! Gói của bạn chỉ được mượn tối đa $sosachtoida cuốn. '
-          'Bạn đang mượn $soSachDangMuon cuốn, không thể mượn thêm ${maVachList.length} cuốn nữa.'
-        );
+            'Vượt quá giới hạn! Gói của bạn chỉ được mượn tối đa $sosachtoida cuốn. '
+            'Bạn đang mượn $soSachDangMuon cuốn, không thể mượn thêm ${maVachList.length} cuốn nữa.');
       }
 
       // ========== BƯỚC 4: Tính tổng tiền cọc (theo số đầu sách) ==========
@@ -321,11 +327,10 @@ class SupabaseLoanRepository {
       // ========== BƯỚC 5: Kiểm tra số dư ví ==========
       if (soduvi < tongTienCoc) {
         throw Exception(
-          'Số dư ví không đủ để mượn ${maVachList.length} cuốn sách. '
-          'Cần tối thiểu ${_formatCurrency(tongTienCoc)} VNĐ (${_formatCurrency(tiencoc)}/cuốn). '
-          'Số dư hiện tại: ${_formatCurrency(soduvi)} VNĐ. '
-          'Vui lòng nạp thêm ${_formatCurrency(tongTienCoc - soduvi)} VNĐ.'
-        );
+            'Số dư ví không đủ để mượn ${maVachList.length} cuốn sách. '
+            'Cần tối thiểu ${_formatCurrency(tongTienCoc)} VNĐ (${_formatCurrency(tiencoc)}/cuốn). '
+            'Số dư hiện tại: ${_formatCurrency(soduvi)} VNĐ. '
+            'Vui lòng nạp thêm ${_formatCurrency(tongTienCoc - soduvi)} VNĐ.');
       }
 
       // ========== BƯỚC 6: Lấy mã thẻ thành viên ==========
@@ -337,7 +342,8 @@ class SupabaseLoanRepository {
           .maybeSingle();
 
       if (cardResponse == null) {
-        throw Exception('Không tìm thấy thẻ thành viên hợp lệ cho độc giả $maDG');
+        throw Exception(
+            'Không tìm thấy thẻ thành viên hợp lệ cho độc giả $maDG');
       }
 
       final mast = cardResponse['mast'] as String;
@@ -369,8 +375,7 @@ class SupabaseLoanRepository {
         // Update trạng thái sách sang 1 (Đang mượn)
         await _client
             .from(_bookTable)
-            .update({'trangthai': 1})
-            .eq('mavach', mavach);
+            .update({'trangthai': 1}).eq('mavach', mavach);
       }
 
       // ========== BƯỚC 9: Trừ tiền cọc từ ví ==========
@@ -378,8 +383,7 @@ class SupabaseLoanRepository {
         final newBalance = soduvi - tongTienCoc;
         await _client
             .from(_memberTable)
-            .update({'soduvi': newBalance})
-            .eq('madg', maDG.trim());
+            .update({'soduvi': newBalance}).eq('madg', maDG.trim());
 
         // ========== BƯỚC 10: Ghi log giao dịch trừ cọc ==========
         await _client.from('giao_dich_vi').insert({
@@ -388,7 +392,9 @@ class SupabaseLoanRepository {
           'sotien': tongTienCoc,
           'ngaygiaodich': DateTime.now().toIso8601String(),
           'noidung': 'Cọc mượn ${maVachList.length} sách phiếu $mapm',
-        });        debugPrint('💰 Đã trừ tiền cọc: ${_formatCurrency(tongTienCoc)} VNĐ (${maVachList.length} cuốn x ${_formatCurrency(tiencoc)})');
+        });
+        debugPrint(
+            '💰 Đã trừ tiền cọc: ${_formatCurrency(tongTienCoc)} VNĐ (${maVachList.length} cuốn x ${_formatCurrency(tiencoc)})');
       }
 
       // ========== BƯỚC 11: Ghi log nhật ký hoạt động ==========
@@ -396,13 +402,15 @@ class SupabaseLoanRepository {
       await activityLogRepo.addLog(
         module: ActivityModule.muonTra,
         actionType: 'Tạo phiếu mượn',
-        content: 'Tạo phiếu mượn $mapm cho độc giả $maDG, mượn ${maVachList.length} cuốn sách.',
+        content:
+            'Tạo phiếu mượn $mapm cho độc giả $maDG, mượn ${maVachList.length} cuốn sách.',
         employeeId: maNV.trim(),
         memberId: maDG.trim(),
         referenceId: mapm,
       );
 
-      debugPrint('✅ Tạo phiếu mượn thành công: $mapm với ${maVachList.length} sách');
+      debugPrint(
+          '✅ Tạo phiếu mượn thành công: $mapm với ${maVachList.length} sách');
       return mapm;
     } catch (e) {
       debugPrint('❌ Lỗi khi tạo phiếu mượn: $e');
@@ -413,9 +421,9 @@ class SupabaseLoanRepository {
   /// Format tiền tệ
   String _formatCurrency(int amount) {
     return amount.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]}.',
-    );
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]}.',
+        );
   }
 
   // ==================== LẤY DANH SÁCH PHIẾU MƯỢN ====================
@@ -424,13 +432,10 @@ class SupabaseLoanRepository {
   Future<List<SupabaseLoanWithDetails>> getActiveLoans() async {
     try {
       // Query phiếu mượn với join độc giả
-      final loansResponse = await _client
-          .from(_loanTable)
-          .select('''
+      final loansResponse = await _client.from(_loanTable).select('''
             *,
             doc_gia(madg, hodg, tenlotdg, tendg, sdt)
-          ''')
-          .order('ngaymuon', ascending: false);
+          ''').order('ngaymuon', ascending: false);
 
       final List<SupabaseLoanWithDetails> result = [];
 
@@ -439,7 +444,8 @@ class SupabaseLoanRepository {
 
         // Query chi tiết mượn cho phiếu này với join sách và đầu sách
         final detailsResponse = await _client
-            .from(_loanDetailTable)            .select('''
+            .from(_loanDetailTable)
+            .select('''
               *,
               sach(mavach, mads, vitri, dau_sach(mads, tensach))
             ''')
@@ -486,12 +492,12 @@ class SupabaseLoanRepository {
 
       for (final json in detailsResponse) {
         final detail = SupabaseLoanDetail.fromJson(json);
-        
+
         if (!groupedLoans.containsKey(detail.loanId)) {
           // Parse loan từ nested data
           final loanJson = json['phieu_muon'] as Map<String, dynamic>?;
           if (loanJson == null) continue;
-          
+
           final loan = SupabaseLoan.fromJson(loanJson);
           groupedLoans[detail.loanId] = SupabaseLoanWithDetails(
             loan: loan,
@@ -517,28 +523,23 @@ class SupabaseLoanRepository {
   }
 
   /// Lấy lịch sử mượn của một độc giả
-  Future<List<SupabaseLoanWithDetails>> getLoansByMember(String memberId) async {
+  Future<List<SupabaseLoanWithDetails>> getLoansByMember(
+      String memberId) async {
     try {
-      final loansResponse = await _client
-          .from(_loanTable)
-          .select('''
+      final loansResponse = await _client.from(_loanTable).select('''
             *,
             doc_gia(madg, hodg, tenlotdg, tendg, sdt)
-          ''')
-          .eq('madg', memberId.trim())
-          .order('ngaymuon', ascending: false);
+          ''').eq('madg', memberId.trim()).order('ngaymuon', ascending: false);
 
       final List<SupabaseLoanWithDetails> result = [];
 
       for (final loanJson in loansResponse) {
         final loan = SupabaseLoan.fromJson(loanJson);
 
-        final detailsResponse = await _client
-            .from(_loanDetailTable)            .select('''
+        final detailsResponse = await _client.from(_loanDetailTable).select('''
               *,
               sach(mavach, mads, vitri, dau_sach(mads, tensach))
-            ''')
-            .eq('mapm', loan.id);
+            ''').eq('mapm', loan.id);
 
         final details = (detailsResponse as List)
             .map((json) => SupabaseLoanDetail.fromJson(json))
@@ -557,24 +558,19 @@ class SupabaseLoanRepository {
   /// Lấy chi tiết một phiếu mượn
   Future<SupabaseLoanWithDetails?> getLoanById(String loanId) async {
     try {
-      final loanResponse = await _client
-          .from(_loanTable)
-          .select('''
+      final loanResponse = await _client.from(_loanTable).select('''
             *,
             doc_gia(madg, hodg, tenlotdg, tendg, sdt)
-          ''')          .eq('mapm', loanId)
-          .maybeSingle();
+          ''').eq('mapm', loanId).maybeSingle();
 
       if (loanResponse == null) return null;
 
       final loan = SupabaseLoan.fromJson(loanResponse);
 
-      final detailsResponse = await _client
-          .from(_loanDetailTable)
-          .select('''            *,
+      final detailsResponse =
+          await _client.from(_loanDetailTable).select('''            *,
             sach(mavach, mads, vitri, dau_sach(mads, tensach))
-          ''')
-          .eq('mapm', loanId);
+          ''').eq('mapm', loanId);
 
       final details = (detailsResponse as List)
           .map((json) => SupabaseLoanDetail.fromJson(json))
@@ -590,11 +586,11 @@ class SupabaseLoanRepository {
   // ==================== TRẢ SÁCH ====================
 
   /// Trả một cuốn sách
-  /// 
+  ///
   /// [loanId]: Mã phiếu mượn
   /// [barcode]: Mã vạch sách cần trả
   /// [bookCondition]: Tình trạng sách khi trả (tùy chọn)
-  /// 
+  ///
   /// Logic:
   /// 1. Tính số ngày quá hạn và tiền phạt
   /// 2. Update chi_tiet_muon: ngaytrathucte, tinhtrangsachkhitra, tienphatphatsinh, trangthai
@@ -617,11 +613,11 @@ class SupabaseLoanRepository {
   }
 
   /// Trả nhiều cuốn sách cùng lúc
-  /// 
+  ///
   /// [loanId]: Mã phiếu mượn
   /// [barcodes]: Danh sách mã vạch sách cần trả
   /// [bookCondition]: Tình trạng sách khi trả (tùy chọn)
-  /// 
+  ///
   /// Logic:
   /// 1. Lấy thông tin chi tiết từng sách mượn
   /// 2. Tính tổng tiền phạt cho tất cả sách
@@ -657,7 +653,8 @@ class SupabaseLoanRepository {
             .maybeSingle();
 
         if (detailResponse == null) {
-          throw Exception('Không tìm thấy thông tin mượn sách $barcode trong phiếu $loanId');
+          throw Exception(
+              'Không tìm thấy thông tin mượn sách $barcode trong phiếu $loanId');
         }
 
         // Lấy memberId từ phiếu đầu tiên
@@ -702,8 +699,7 @@ class SupabaseLoanRepository {
         // Update trạng thái sách về 0 (Sẵn sàng)
         await _client
             .from(_bookTable)
-            .update({'trangthai': 0})
-            .eq('mavach', barcode);
+            .update({'trangthai': 0}).eq('mavach', barcode);
 
         results.add(SupabaseReturnBookResult(
           barcode: barcode,
@@ -727,8 +723,10 @@ class SupabaseLoanRepository {
       }
 
       final soduvi = (memberResponse['soduvi'] as num?)?.toInt() ?? 0;
-      final currentPoints = (memberResponse['diemtichluy'] as num?)?.toInt() ?? 0;
-      final goiHoiVien = memberResponse['goi_hoi_vien'] as Map<String, dynamic>?;
+      final currentPoints =
+          (memberResponse['diemtichluy'] as num?)?.toInt() ?? 0;
+      final goiHoiVien =
+          memberResponse['goi_hoi_vien'] as Map<String, dynamic>?;
       final tiencoc = (goiHoiVien?['tiencoc'] as num?)?.toInt() ?? 0;
 
       // ========== BƯỚC 3: Tính tổng tiền hoàn cọc ==========
@@ -739,8 +737,7 @@ class SupabaseLoanRepository {
       final newBalance = soduvi + tongTienHoan - tongTienPhat;
       await _client
           .from(_memberTable)
-          .update({'soduvi': newBalance})
-          .eq('madg', memberId.trim());
+          .update({'soduvi': newBalance}).eq('madg', memberId.trim());
 
       // ========== BƯỚC 5: Ghi log giao dịch hoàn cọc ==========
       if (tongTienHoan > 0) {
@@ -751,7 +748,8 @@ class SupabaseLoanRepository {
           'ngaygiaodich': DateTime.now().toIso8601String(),
           'noidung': 'Hoàn cọc trả $soLuongTra sách (phiếu $loanId)',
         });
-        debugPrint('💰 Đã hoàn tiền cọc: ${_formatCurrency(tongTienHoan)} VNĐ ($soLuongTra cuốn x ${_formatCurrency(tiencoc)})');
+        debugPrint(
+            '💰 Đã hoàn tiền cọc: ${_formatCurrency(tongTienHoan)} VNĐ ($soLuongTra cuốn x ${_formatCurrency(tiencoc)})');
       }
 
       // ========== BƯỚC 6: Ghi log giao dịch phạt (nếu có) ==========
@@ -770,18 +768,20 @@ class SupabaseLoanRepository {
       if (tongDiemCong > 0) {
         await _client
             .from(_memberTable)
-            .update({'diemtichluy': currentPoints + tongDiemCong})
-            .eq('madg', memberId.trim());
+            .update({'diemtichluy': currentPoints + tongDiemCong}).eq(
+                'madg', memberId.trim());
         debugPrint('⭐ Đã cộng $tongDiemCong điểm tích lũy');
-      }      // Cập nhật depositRefunded cho kết quả đầu tiên (hoặc chia đều)
-      final updatedResults = results.map((r) => SupabaseReturnBookResult(
-        barcode: r.barcode,
-        isOverdue: r.isOverdue,
-        lateDays: r.lateDays,
-        fineAmount: r.fineAmount,
-        pointsEarned: r.pointsEarned,
-        depositRefunded: tiencoc, // Mỗi sách hoàn 1 phần cọc
-      )).toList();
+      } // Cập nhật depositRefunded cho kết quả đầu tiên (hoặc chia đều)
+      final updatedResults = results
+          .map((r) => SupabaseReturnBookResult(
+                barcode: r.barcode,
+                isOverdue: r.isOverdue,
+                lateDays: r.lateDays,
+                fineAmount: r.fineAmount,
+                pointsEarned: r.pointsEarned,
+                depositRefunded: tiencoc, // Mỗi sách hoàn 1 phần cọc
+              ))
+          .toList();
 
       // ========== BƯỚC 8: Ghi log nhật ký hoạt động ==========
       final activityLogRepo = SupabaseActivityLogRepository(_client);
@@ -789,12 +789,14 @@ class SupabaseLoanRepository {
       await activityLogRepo.addLog(
         module: ActivityModule.muonTra,
         actionType: 'Nhận trả sách',
-        content: 'Nhận trả $soLuongTra sách ($barcodeListStr) từ phiếu $loanId. Hoàn cọc ${_formatCurrency(tongTienHoan)} VNĐ${tongTienPhat > 0 ? ', phạt ${_formatCurrency(tongTienPhat)} VNĐ' : ''}.',
+        content:
+            'Nhận trả $soLuongTra sách ($barcodeListStr) từ phiếu $loanId. Hoàn cọc ${_formatCurrency(tongTienHoan)} VNĐ${tongTienPhat > 0 ? ', phạt ${_formatCurrency(tongTienPhat)} VNĐ' : ''}.',
         memberId: memberId.trim(),
         referenceId: loanId,
       );
 
-      debugPrint('✅ Trả $soLuongTra sách thành công. Hoàn: ${_formatCurrency(tongTienHoan)}, Phạt: ${_formatCurrency(tongTienPhat)}');
+      debugPrint(
+          '✅ Trả $soLuongTra sách thành công. Hoàn: ${_formatCurrency(tongTienHoan)}, Phạt: ${_formatCurrency(tongTienPhat)}');
 
       return updatedResults;
     } catch (e) {
@@ -806,10 +808,10 @@ class SupabaseLoanRepository {
   // ==================== GIA HẠN ====================
 
   /// Gia hạn thời gian mượn sách
-  /// 
+  ///
   /// [loanId]: Mã phiếu mượn
   /// [barcode]: Mã vạch sách cần gia hạn
-  /// 
+  ///
   /// Returns: Ngày hẹn trả mới
   Future<DateTime> renewBook({
     required String loanId,
@@ -818,7 +820,8 @@ class SupabaseLoanRepository {
     try {
       // Lấy thông tin chi tiết mượn
       final detailResponse = await _client
-          .from(_loanDetailTable)          .select('ngayhentra, solangiahan, ngaytrathucte')
+          .from(_loanDetailTable)
+          .select('ngayhentra, solangiahan, ngaytrathucte')
           .eq('mapm', loanId)
           .eq('mavach', barcode)
           .maybeSingle();
@@ -833,19 +836,22 @@ class SupabaseLoanRepository {
       }
 
       // Kiểm tra số lần gia hạn
-      final currentRenewals = (detailResponse['solangiahan'] as num?)?.toInt() ?? 0;
+      final currentRenewals =
+          (detailResponse['solangiahan'] as num?)?.toInt() ?? 0;
       if (currentRenewals >= kSupabaseMaxRenewals) {
         throw Exception('Đã đạt giới hạn gia hạn ($kSupabaseMaxRenewals lần)');
       }
 
       // Tính ngày hẹn trả mới
       final currentDueDate = DateTime.parse(detailResponse['ngayhentra']);
-      final newDueDate = currentDueDate.add(Duration(days: kSupabaseRenewalDays));
+      final newDueDate =
+          currentDueDate.add(Duration(days: kSupabaseRenewalDays));
 
       // Update
       await _client
           .from(_loanDetailTable)
-          .update({            'ngayhentra': newDueDate.toIso8601String(),
+          .update({
+            'ngayhentra': newDueDate.toIso8601String(),
             'solangiahan': currentRenewals + 1,
             'trangthai': 0, // Reset về đang mượn nếu trước đó là quá hạn
           })
@@ -911,13 +917,15 @@ final supabaseLoanRepositoryProvider = Provider<SupabaseLoanRepository>((ref) {
 });
 
 /// Provider cho danh sách phiếu mượn đang hoạt động
-final activeLoansProvider = FutureProvider<List<SupabaseLoanWithDetails>>((ref) async {
+final activeLoansProvider =
+    FutureProvider<List<SupabaseLoanWithDetails>>((ref) async {
   final repo = ref.watch(supabaseLoanRepositoryProvider);
   return repo.getActiveLoans();
 });
 
 /// Provider cho danh sách phiếu mượn quá hạn
-final overdueLoansProvider = FutureProvider<List<SupabaseLoanWithDetails>>((ref) async {
+final overdueLoansProvider =
+    FutureProvider<List<SupabaseLoanWithDetails>>((ref) async {
   final repo = ref.watch(supabaseLoanRepositoryProvider);
   return repo.getOverdueLoans();
 });
@@ -930,7 +938,8 @@ final memberLoanHistorySupabaseProvider = FutureProvider.family
 });
 
 /// Provider cho danh sách sách có sẵn
-final availableBooksProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final availableBooksProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final repo = ref.watch(supabaseLoanRepositoryProvider);
   return repo.getAvailableBooks();
 });
