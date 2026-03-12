@@ -229,7 +229,7 @@ class _UserHomePageState extends ConsumerState<UserHomePage> {
           ),
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 300,
+              height: 360,
               child: newBooksAsync.when(
                 data: (books) {
                   if (books.isEmpty) {
@@ -239,13 +239,11 @@ class _UserHomePageState extends ConsumerState<UserHomePage> {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     itemCount: books.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (context, index) {
                       final book = books[index];
-                      return _SoftBookCard(
-                        title: book.title,
-                        author: book.authorString,
-                        imageUrl: book.imageUrl,
+                      return _ProBookCard(
+                        book: book,
                         imageHue: (index * 40.0) + 10,
                         onTap: () => context.push('/user/book/${book.id}'),
                       );
@@ -266,7 +264,7 @@ class _UserHomePageState extends ConsumerState<UserHomePage> {
           ),
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 300,
+              height: 360,
               child: popularBooksAsync.when(
                 data: (books) {
                   if (books.isEmpty) {
@@ -276,13 +274,11 @@ class _UserHomePageState extends ConsumerState<UserHomePage> {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     itemCount: books.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (context, index) {
                       final book = books[index];
-                      return _SoftBookCard(
-                        title: book.title,
-                        author: book.authorString,
-                        imageUrl: book.imageUrl,
+                      return _ProBookCard(
+                        book: book,
                         imageHue: (index * 50.0) + 100,
                         onTap: () => context.push('/user/book/${book.id}'),
                       );
@@ -342,11 +338,8 @@ class _UserHomePageState extends ConsumerState<UserHomePage> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final book = books[index];
-                    return _SoftBookListTile(
-                      title: book.title,
-                      author: book.authorString,
-                      rating: book.avgRating,
-                      imageUrl: book.imageUrl,
+                    return _ProBookListTile(
+                      book: book,
                       imageHue: (index * 60.0) + 200,
                       onTap: () => context.push('/user/book/${book.id}'),
                     );
@@ -446,6 +439,40 @@ class _UserHomePageState extends ConsumerState<UserHomePage> {
 }
 
 // ==================== SOFT UI COMPONENTS ====================
+
+/// Format số thành chuỗi tiền tệ VNĐ (180000 → '180.000')
+String _formatVND(int price) {
+  final str = price.toString();
+  final buffer = StringBuffer();
+  for (int i = 0; i < str.length; i++) {
+    if (i > 0 && (str.length - i) % 3 == 0) buffer.write('.');
+    buffer.write(str[i]);
+  }
+  return buffer.toString();
+}
+
+/// Placeholder cover gradient for books without images
+Widget _buildPlaceholderCover(double hue) {
+  return Container(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [
+          HSLColor.fromAHSL(1, hue % 360, 0.40, 0.55).toColor(),
+          HSLColor.fromAHSL(1, (hue + 30) % 360, 0.45, 0.40).toColor(),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    child: Center(
+      child: Icon(
+        Icons.menu_book_rounded,
+        size: 44,
+        color: Colors.white.withAlpha(200),
+      ),
+    ),
+  );
+}
 
 /// Soft Icon Button with subtle background
 class _SoftIconButton extends StatelessWidget {
@@ -645,281 +672,578 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// Soft Book Card with elegant shadow
-class _SoftBookCard extends StatelessWidget {
-  const _SoftBookCard({
-    required this.title,
-    required this.author,
+// ==================== PROFESSIONAL BOOK CARD ====================
+
+/// Professional Book Card — E-commerce style unified card
+/// Matches the reference design: cover top, info bottom, tags, price, rating.
+class _ProBookCard extends StatefulWidget {
+  const _ProBookCard({
+    required this.book,
     required this.imageHue,
-    this.imageUrl,
     this.onTap,
   });
 
-  final String title;
-  final String author;
+  final UserBook book;
   final double imageHue;
-  final String? imageUrl;
   final VoidCallback? onTap;
+
+  @override
+  State<_ProBookCard> createState() => _ProBookCardState();
+}
+
+class _ProBookCardState extends State<_ProBookCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scaleCtrl;
+  late final Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 200),
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _scaleAnim = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeOutCubic),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final book = widget.book;
+    final hasCoverPrice = book.coverPrice != null && book.coverPrice! > 0;
+    final hasSalePrice = book.salePrice != null && book.salePrice! > 0;
+    // Discount calculation
+    int? discountPercent;
+    if (hasCoverPrice && hasSalePrice && book.salePrice! < book.coverPrice!) {
+      discountPercent =
+          (((book.coverPrice! - book.salePrice!) / book.coverPrice!) * 100)
+              .round();
+    }
+    // Display price: show salePrice if available, otherwise coverPrice
+    final displayPrice = hasSalePrice ? book.salePrice! : (hasCoverPrice ? book.coverPrice! : null);
+    final originalPrice = (hasSalePrice && hasCoverPrice && book.salePrice! < book.coverPrice!)
+        ? book.coverPrice!
+        : null;
+
     return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 150,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cover Image with soft shadow
-            Container(
-              height: 200,
-              width: 150,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  colors: [
-                    HSLColor.fromAHSL(1, imageHue % 360, 0.45, 0.55).toColor(),
-                    HSLColor.fromAHSL(1, (imageHue + 30) % 360, 0.5, 0.4).toColor(),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: HSLColor.fromAHSL(0.25, imageHue % 360, 0.4, 0.5).toColor(),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withAlpha(15),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+      onTapDown: (_) => _scaleCtrl.forward(),
+      onTapUp: (_) {
+        _scaleCtrl.reverse();
+        widget.onTap?.call();
+      },
+      onTapCancel: () => _scaleCtrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) => Transform.scale(
+          scale: _scaleAnim.value,
+          child: child,
+        ),
+        child: Container(
+          width: 172,
+          decoration: BoxDecoration(
+            color: AppTheme.cardLight,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppTheme.slate200.withAlpha(100),
+              width: 0.8,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(10),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+                spreadRadius: 0,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: imageUrl != null && imageUrl!.isNotEmpty
-                    ? Image.network(
-                        imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Icon(
-                            Icons.menu_book_rounded,
-                            size: 44,
-                            color: Colors.white.withAlpha(200),
+              BoxShadow(
+                color: Colors.black.withAlpha(5),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Cover Image (top half) ──
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14),
+                ),
+                child: SizedBox(
+                  height: 180,
+                  width: double.infinity,                  child: book.imageUrl != null && book.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          book.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _buildPlaceholderCover(widget.imageHue),
+                        )
+                      : _buildPlaceholderCover(widget.imageHue),
+                ),
+              ),
+
+              // ── Info Box (bottom half) ──
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Row 1: Title
+                      Text(
+                        book.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              height: 1.25,
+                              letterSpacing: -0.2,
+                              color: AppTheme.textPrimaryLight,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Row 2: Author
+                      Text(
+                        book.authorString,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                              fontWeight: FontWeight.w400,
+                              fontStyle: FontStyle.italic,
+                              height: 1.2,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Row 3: Tags
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          if (book.categoryName != null)
+                            _PillBadge(
+                              label: book.categoryName!,
+                              bgColor: const Color(0xFFE8F4FD),
+                              textColor: const Color(0xFF1A73B5),
+                            ),
+                          if (discountPercent != null && discountPercent > 0)
+                            _PillBadge(
+                              label: '[-$discountPercent%]',
+                              bgColor: const Color(0xFFFDE8E8),
+                              textColor: AppTheme.primaryColor,
+                            ),
+                          if (hasCoverPrice)
+                            const _PillBadge(
+                              label: 'Freeship',
+                              bgColor: Color(0xFFE8F8F0),
+                              textColor: Color(0xFF16A34A),
+                            ),
+                        ],
+                      ),
+
+                      const Spacer(),
+
+                      // Row 4: Price
+                      if (displayPrice != null) ...[
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${_formatVND(displayPrice)} đ',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.primaryColor,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ),
+                            if (originalPrice != null) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '${_formatVND(originalPrice)} đ',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.textSecondary.withAlpha(160),
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor:
+                                      AppTheme.textSecondary.withAlpha(160),
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ] else ...[
+                        Text(
+                          'Chỉ cho mượn',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textSecondary.withAlpha(180),
                           ),
                         ),
-                      )
-                    : Center(
-                        child: Icon(
-                          Icons.menu_book_rounded,
-                          size: 44,
-                          color: Colors.white.withAlpha(200),
-                        ),
+                      ],
+                      const SizedBox(height: 6),
+
+                      // Row 5: Rating
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          ...List.generate(5, (i) {
+                            final starValue = i + 1;
+                            if (book.avgRating >= starValue) {
+                              return const Icon(Icons.star_rounded,
+                                  size: 14, color: AppTheme.warningColor);
+                            } else if (book.avgRating >= starValue - 0.5) {
+                              return const Icon(Icons.star_half_rounded,
+                                  size: 14, color: AppTheme.warningColor);
+                            } else {
+                              return Icon(Icons.star_outline_rounded,
+                                  size: 14,
+                                  color:
+                                      AppTheme.warningColor.withAlpha(100));
+                            }
+                          }),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              book.reviewCount > 0
+                                  ? '${book.avgRating > 0 ? book.avgRating.toStringAsFixed(1) : ''} (${book.reviewCount} đánh giá)'
+                                  : 'Chưa có đánh giá',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: AppTheme.textSecondary.withAlpha(180),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Title with improved typography - use Flexible to prevent overflow
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimaryLight,
-                          height: 1.2,
-                          letterSpacing: -0.2,
-                        ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  // Author
-                  Text(
-                    author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                ],
+                ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  // placeholder moved to top-level _buildPlaceholderCover
+}
+
+// ==================== PROFESSIONAL LIST TILE ====================
+
+/// Professional Book List Tile — horizontal card for vertical lists
+class _ProBookListTile extends StatefulWidget {
+  const _ProBookListTile({
+    required this.book,
+    required this.imageHue,
+    this.onTap,
+  });
+
+  final UserBook book;
+  final double imageHue;
+  final VoidCallback? onTap;
+
+  @override
+  State<_ProBookListTile> createState() => _ProBookListTileState();
+}
+
+class _ProBookListTileState extends State<_ProBookListTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scaleCtrl;
+  late final Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 200),
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _scaleAnim = Tween<double>(begin: 1.0, end: 0.98).animate(
+      CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeOutCubic),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final book = widget.book;
+    final hasCoverPrice = book.coverPrice != null && book.coverPrice! > 0;
+    final hasSalePrice = book.salePrice != null && book.salePrice! > 0;
+    int? discountPercent;
+    if (hasCoverPrice && hasSalePrice && book.salePrice! < book.coverPrice!) {
+      discountPercent =
+          (((book.coverPrice! - book.salePrice!) / book.coverPrice!) * 100)
+              .round();
+    }
+    final displayPrice = hasSalePrice ? book.salePrice! : (hasCoverPrice ? book.coverPrice! : null);
+    final originalPrice = (hasSalePrice && hasCoverPrice && book.salePrice! < book.coverPrice!)
+        ? book.coverPrice!
+        : null;
+
+    return GestureDetector(
+      onTapDown: (_) => _scaleCtrl.forward(),
+      onTapUp: (_) {
+        _scaleCtrl.reverse();
+        widget.onTap?.call();
+      },
+      onTapCancel: () => _scaleCtrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scaleAnim,
+        builder: (context, child) => Transform.scale(
+          scale: _scaleAnim.value,
+          child: child,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.cardLight,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppTheme.slate200.withAlpha(100),
+              width: 0.8,
             ),
-          ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(8),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withAlpha(4),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cover image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 72,
+                  height: 100,
+                                    child: book.imageUrl != null && book.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          book.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _buildPlaceholderCover(widget.imageHue),
+                        )
+                      : _buildPlaceholderCover(widget.imageHue),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Info
+              Expanded(
+                child: SizedBox(
+                  height: 100,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        book.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                              height: 1.25,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+
+                      // Author
+                      Text(
+                        book.authorString,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Tags
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: [
+                          if (book.categoryName != null)
+                            _PillBadge(
+                              label: book.categoryName!,
+                              bgColor: const Color(0xFFE8F4FD),
+                              textColor: const Color(0xFF1A73B5),
+                              small: true,
+                            ),
+                          if (discountPercent != null && discountPercent > 0)
+                            _PillBadge(
+                              label: '[-$discountPercent%]',
+                              bgColor: const Color(0xFFFDE8E8),
+                              textColor: AppTheme.primaryColor,
+                              small: true,
+                            ),
+                          if (hasCoverPrice)
+                            const _PillBadge(
+                              label: 'Freeship',
+                              bgColor: Color(0xFFE8F8F0),
+                              textColor: Color(0xFF16A34A),
+                              small: true,
+                            ),
+                        ],
+                      ),
+
+                      const Spacer(),
+
+                      // Price + Rating row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Price
+                          if (displayPrice != null) ...[
+                            Text(
+                              '${_formatVND(displayPrice)} đ',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                            if (originalPrice != null) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                '${_formatVND(originalPrice)} đ',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.textSecondary.withAlpha(150),
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor:
+                                      AppTheme.textSecondary.withAlpha(150),
+                                ),
+                              ),
+                            ],
+                          ] else ...[
+                            Text(
+                              'Chỉ cho mượn',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textSecondary.withAlpha(180),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          // Rating stars (compact)
+                          ...List.generate(5, (i) {
+                            final starValue = i + 1;
+                            if (book.avgRating >= starValue) {
+                              return const Icon(Icons.star_rounded,
+                                  size: 12, color: AppTheme.warningColor);
+                            } else if (book.avgRating >= starValue - 0.5) {
+                              return const Icon(Icons.star_half_rounded,
+                                  size: 12, color: AppTheme.warningColor);
+                            } else {
+                              return Icon(Icons.star_outline_rounded,
+                                  size: 12,
+                                  color: AppTheme.warningColor.withAlpha(100));
+                            }
+                          }),
+                          const SizedBox(width: 2),
+                          Text(
+                            book.avgRating > 0
+                                ? '${book.avgRating.toStringAsFixed(1)} (${book.reviewCount})'
+                                : '',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textSecondary.withAlpha(180),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Soft Book List Tile with elegant card styling
-class _SoftBookListTile extends StatelessWidget {
-  const _SoftBookListTile({
-    required this.title,
-    required this.author,
-    required this.rating,
-    required this.imageHue,
-    this.imageUrl,
-    this.onTap,
+// ==================== PILL BADGE ====================
+
+/// Pill-shaped badge/chip with pastel background
+class _PillBadge extends StatelessWidget {
+  const _PillBadge({
+    required this.label,
+    required this.bgColor,
+    required this.textColor,
+    this.small = false,
   });
 
-  final String title;
-  final String author;
-  final double rating;
-  final double imageHue;
-  final String? imageUrl;
-  final VoidCallback? onTap;
+  final String label;
+  final Color bgColor;
+  final Color textColor;
+  final bool small;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.cardLight,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.slate200.withAlpha(100),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(8),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-              spreadRadius: 0,
-            ),
-            BoxShadow(
-              color: Colors.black.withAlpha(4),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Mini cover with soft shadow
-            Container(
-              width: 60,
-              height: 85,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                gradient: LinearGradient(
-                  colors: [
-                    HSLColor.fromAHSL(1, imageHue % 360, 0.45, 0.55).toColor(),
-                    HSLColor.fromAHSL(1, (imageHue + 30) % 360, 0.5, 0.4).toColor(),
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: HSLColor.fromAHSL(0.2, imageHue % 360, 0.4, 0.5).toColor(),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: imageUrl != null && imageUrl!.isNotEmpty
-                    ? Image.network(
-                        imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.menu_book_rounded,
-                          color: Colors.white70,
-                          size: 26,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.menu_book_rounded,
-                        color: Colors.white70,
-                        size: 26,
-                      ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.2,
-                          height: 1.3,
-                        ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.primaryColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Rating badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.warningColor.withAlpha(20),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.star_rounded,
-                          size: 14,
-                          color: AppTheme.warningColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          rating > 0 ? rating.toStringAsFixed(1) : 'Chưa có',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.warningColor,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Bookmark button
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppTheme.slate200.withAlpha(60),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: IconButton(
-                icon: const Icon(
-                  Icons.bookmark_border_rounded,
-                  color: AppTheme.textSecondary,
-                  size: 20,
-                ),
-                onPressed: () {},
-                padding: EdgeInsets.zero,
-              ),
-            ),
-          ],
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: small ? 6 : 8,
+        vertical: small ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: small ? 9 : 10,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+          height: 1.3,
         ),
       ),
     );

@@ -1,3 +1,5 @@
+﻿import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,8 +8,13 @@ import '../../../../core/theme/app_theme.dart';
 import '../../core/user_auth_provider.dart';
 import '../../data/user_book_repository.dart';
 import '../../data/user_order_repository.dart';
+import '../../data/user_wallet_repository.dart';
 
-/// Checkout Mua sách - Form giao hàng & thanh toán
+/// ============================================================================
+/// Buy Checkout Page - Pro Max
+/// Full e-commerce checkout: product summary, delivery info, payment method
+/// selection (COD / Wallet with live balance), bill summary, submit order.
+/// ============================================================================
 class BuyCheckoutPage extends ConsumerStatefulWidget {
   const BuyCheckoutPage({super.key, required this.bookId});
 
@@ -22,14 +29,17 @@ class _BuyCheckoutPageState extends ConsumerState<BuyCheckoutPage> {
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
-  String _paymentMethod = 'cod';
+  final _noteCtrl = TextEditingController();
+
+  String _paymentMethod = 'cod'; // 'cod' | 'vi_booknest'
   int _quantity = 1;
   bool _isSubmitting = false;
+
+  static const int _shippingFee = 15000;
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill from logged-in member
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final member = ref.read(currentMemberProvider);
       if (member != null) {
@@ -44,326 +54,732 @@ class _BuyCheckoutPageState extends ConsumerState<BuyCheckoutPage> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
+    _noteCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _handleOrder(UserBook book) async {
-    if (!_formKey.currentState!.validate()) return;
-    final member = ref.read(currentMemberProvider);
-    if (member == null) return;
+  // ======================== SUBMIT ORDER ========================
 
-    setState(() => _isSubmitting = true);
+  /// Tính giá cuối cùng: ưu tiên salePrice, nếu không có thì dùng coverPrice
+  int _getFinalPrice(UserBook book) {
+    if (book.salePrice != null && book.salePrice! > 0) {
+      return book.salePrice!;
+    }
+    return book.coverPrice ?? 0;
+  }
+
+  Future<void> _handleOrder(UserBook book) async {
+    log('Bắt đầu xử lý Đặt hàng...');
+
+    log('Kiểm tra Form validation...');
+    if (!_formKey.currentState!.validate()) {
+      log('Form lỗi: Thông tin chưa hợp lệ!');
+      return;
+    }
+    log('Form hợp lệ. Chuẩn bị gọi Repository tạo đơn...');
+
+    final member = ref.read(currentMemberProvider);
+    if (member == null) {
+      log('Lỗi: Chưa đăng nhập!');
+      _showError('Vui lòng đăng nhập để mua sách');
+      return;
+    }
+
+    final unitPrice = _getFinalPrice(book);
+    if (unitPrice <= 0) {
+      log('Lỗi: Sách không có giá bán hợp lệ!');
+      _showError('Sách này hiện không có giá bán');
+      return;
+    }
+
+        setState(() => _isSubmitting = true);
 
     try {
+      // Xác định phương thức thanh toán
+      final paymentMethodValue = _paymentMethod == 'cod' ? 'cod' : 'vi_booknest';
+      log('Phương thức thanh toán đang gửi: $paymentMethodValue (UI value: $_paymentMethod)');
+      
       final orderRepo = ref.read(userOrderRepositoryProvider);
-      final orderId = await orderRepo.createOrder(
+      final orderId = await orderRepo.createPurchaseOrder(
         memberId: member.id,
         items: [
           {
             'bookId': book.id,
+            'bookTitle': book.title,
             'quantity': _quantity,
-            'unitPrice': book.salePrice ?? 0,
+            'unitPrice': unitPrice,
           },
         ],
         recipientName: _nameCtrl.text.trim(),
         recipientPhone: _phoneCtrl.text.trim(),
         recipientAddress: _addressCtrl.text.trim(),
-        paymentMethod: _paymentMethod == 'wallet' ? 'vi_booknest' : _paymentMethod,
-        shippingFee: 30000,
-        note: null,
+        paymentMethod: paymentMethodValue,
+        shippingFee: _shippingFee,
+        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       );
+
+            log('Tạo đơn thành công! Mã đơn: $orderId');
 
       if (!mounted) return;
 
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          icon: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppTheme.successColor.withAlpha(20),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check_circle,
-                color: AppTheme.successColor, size: 36),
-          ),
-          title: const Text('Đặt hàng thành công!'),
-          content: Text(
-            'Đơn hàng #$orderId đã được tạo.\n\n'
-            '${_paymentMethod == 'cod' ? 'Bạn sẽ thanh toán khi nhận hàng.' : 'Thanh toán đã được ghi nhận.'}',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                context.go('/user/home');
-              },
-              child: const Text('Về trang chủ'),
-            ),
-          ],
-        ),
-      );
+      // Invalidate providers để UI cập nhật số dư và lịch sử
+      log('Invalidating providers để cập nhật UI...');
+      ref.invalidate(memberOrdersProvider);
+      ref.invalidate(walletBalanceProvider);
+      ref.invalidate(walletTransactionsProvider);
+      log('Đã invalidate: memberOrdersProvider, walletBalanceProvider, walletTransactionsProvider');
+
+      _showSuccessDialog(orderId);
     } catch (e) {
+      log('LỖI khi tạo đơn: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi đặt hàng: ${e.toString().replaceAll('Exception: ', '')}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+      _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: AppTheme.errorColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _showSuccessDialog(int orderId) {
+    final isWallet = _paymentMethod == 'vi_booknest';
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: AppTheme.successColor.withAlpha(24),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.check_circle_rounded,
+              color: AppTheme.successColor, size: 40),
+        ),
+        title: const Text('Đặt hàng thành công!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Đơn hàng #$orderId đã được tạo.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isWallet
+                    ? AppTheme.successColor.withAlpha(16)
+                    : AppTheme.warningColor.withAlpha(16),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isWallet
+                        ? Icons.account_balance_wallet
+                        : Icons.local_shipping_outlined,
+                    size: 16,
+                    color: isWallet
+                        ? AppTheme.successColor
+                        : AppTheme.warningColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      isWallet
+                          ? 'Thanh toán ví đã được ghi nhận'
+                          : 'Thanh toán khi nhận hàng (COD)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isWallet
+                            ? AppTheme.successColor
+                            : AppTheme.warningColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/user/profile/purchases');
+            },
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Xem đơn hàng'),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go('/user/home');
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Về trang chủ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================== BUILD ========================
+
   @override
   Widget build(BuildContext context) {
     final bookAsync = ref.watch(userBookDetailProvider(widget.bookId));
+    final member = ref.watch(currentMemberProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        title: const Text('Mua sách'),
+        title: const Text('Thanh toán'),
         centerTitle: true,
       ),
       body: bookAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Lỗi: $e')),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline,
+                    size: 48, color: AppTheme.errorColor),
+                const SizedBox(height: 12),
+                Text('Lỗi: $e', textAlign: TextAlign.center),
+              ],
+            ),
+          ),
+        ),
         data: (book) {
           if (book == null) {
-            return const Center(child: Text('Không tìm thấy sách'));
+            return const Center(
+              child: Text('Không tìm thấy sách',
+                  style: TextStyle(color: AppTheme.textSecondary)),
+            );
           }
-          final unitPrice = book.salePrice ?? 0;
-          final totalPrice = unitPrice * _quantity;
+          // Sử dụng _getFinalPrice để tính giá cuối cùng
+          final unitPrice = _getFinalPrice(book);
+          final subtotal = unitPrice * _quantity;
+          final total = subtotal + _shippingFee;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ==================== THÔNG TIN SÁCH ====================
-                  _SectionCard(
-                    title: 'Sản phẩm',
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: book.imageUrl != null && book.imageUrl!.isNotEmpty
-                                ? Image.network(book.imageUrl!, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        const Icon(Icons.menu_book, color: Colors.white70, size: 24))
-                                : const Icon(Icons.menu_book, color: Colors.white70, size: 24),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                book.title,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                book.authorString,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: AppTheme.primaryColor),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Text(
-                                    '${_formatPrice(unitPrice)}đ',
-                                    style: const TextStyle(
-                                      color: AppTheme.primaryColor,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  _QuantitySelector(
-                                    value: _quantity,
-                                    onChanged: (v) => setState(() => _quantity = v),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ==================== THÔNG TIN GIAO HÀNG ====================
-                  _SectionCard(
-                    title: 'Thông tin giao hàng',
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Form(
+                    key: _formKey,
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        TextFormField(
-                          controller: _nameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Họ tên người nhận',
-                            prefixIcon: Icon(Icons.person_outline),
-                          ),
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Bắt buộc'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _phoneCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Số điện thoại',
-                            prefixIcon: Icon(Icons.phone_outlined),
-                          ),
-                          keyboardType: TextInputType.phone,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Bắt buộc'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _addressCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Địa chỉ giao hàng',
-                            prefixIcon: Icon(Icons.location_on_outlined),
-                            hintText: 'Số nhà, đường, phường, quận, TP...',
-                          ),
-                          maxLines: 2,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Bắt buộc'
-                              : null,
-                        ),
+                        _buildProductCard(book, unitPrice),
+                        const SizedBox(height: 14),
+                        _buildDeliverySection(),
+                        const SizedBox(height: 14),
+                        _buildPaymentSection(member, total),
+                        const SizedBox(height: 14),
+                        _buildNoteSection(),
+                        const SizedBox(height: 14),
+                        _buildBillSummary(subtotal, total),
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-
-                  // ==================== PHƯƠNG THỨC THANH TOÁN ====================
-                  _SectionCard(
-                    title: 'Phương thức thanh toán',
-                    child: Column(
-                      children: [
-                        _PaymentOption(
-                          icon: Icons.local_shipping_outlined,
-                          title: 'Thanh toán khi nhận hàng (COD)',
-                          subtitle: 'Trả tiền mặt cho shipper',
-                          value: 'cod',
-                          groupValue: _paymentMethod,
-                          onChanged: (v) => setState(() => _paymentMethod = v!),
-                        ),
-                        const SizedBox(height: 8),
-                        _PaymentOption(
-                          icon: Icons.account_balance_wallet_outlined,
-                          title: 'Ví BookNest',
-                          subtitle: 'Thanh toán từ ví điện tử',
-                          value: 'wallet',
-                          groupValue: _paymentMethod,
-                          onChanged: (v) => setState(() => _paymentMethod = v!),
-                        ),
-                        const SizedBox(height: 8),
-                        _PaymentOption(
-                          icon: Icons.credit_card,
-                          title: 'Thanh toán Online',
-                          subtitle: 'Chuyển khoản / Thẻ',
-                          value: 'online',
-                          groupValue: _paymentMethod,
-                          onChanged: (v) => setState(() => _paymentMethod = v!),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ==================== TỔNG TIỀN ====================
-                  _SectionCard(
-                    title: 'Tổng cộng',
-                    child: Column(
-                      children: [
-                        _PriceRow(label: 'Tiền sách', value: '${_formatPrice(totalPrice)}đ'),
-                        _PriceRow(label: 'Phí giao hàng', value: '30.000đ'),
-                        const Divider(height: 16),
-                        _PriceRow(
-                          label: 'Tổng thanh toán',
-                          value: '${_formatPrice(totalPrice + 30000)}đ',
-                          isBold: true,
-                          isRed: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ==================== NÚT ĐẶT HÀNG ====================
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton.icon(
-                      onPressed: _isSubmitting ? null : () => _handleOrder(book),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: _isSubmitting
-                          ? const SizedBox(
-                              width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.shopping_bag_outlined),
-                      label: Text(
-                        'Đặt hàng • ${_formatPrice(totalPrice + 30000)}đ',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
-            ),
+              _buildBottomBar(book, total),
+            ],
           );
         },
       ),
     );
   }
 
-  String _formatPrice(int price) {
+  // ======================== PRODUCT CARD ========================
+
+  Widget _buildProductCard(UserBook book, int unitPrice) {
+    return _CheckoutCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 64,
+            height: 90,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: AppTheme.slate200.withAlpha(80),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: book.imageUrl != null && book.imageUrl!.isNotEmpty
+                  ? Image.network(
+                      book.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _bookPlaceholder(),
+                    )
+                  : _bookPlaceholder(),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  book.title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 15),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  book.authorString,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text(
+                      _formatVND(unitPrice),
+                      style: const TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    if (book.coverPrice != null &&
+                        book.coverPrice! > unitPrice) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatVND(book.coverPrice!),
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    _QuantitySelector(
+                      value: _quantity,
+                      maxValue: book.saleCopies > 0 ? book.saleCopies : 99,
+                      onChanged: (v) => setState(() => _quantity = v),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bookPlaceholder() {
+    return Container(
+      color: const Color(0xFFE8E0F0),
+      child: const Center(
+        child: Icon(Icons.menu_book_rounded,
+            color: Color(0xFF9B8EC4), size: 28),
+      ),
+    );
+  }
+
+  // ======================== DELIVERY SECTION ========================
+
+  Widget _buildDeliverySection() {
+    return _CheckoutCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.local_shipping_outlined,
+            title: 'Thông tin giao hàng',
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Họ tên người nhận *',
+              prefixIcon: Icon(Icons.person_outline, size: 20),
+              isDense: true,
+            ),
+            textInputAction: TextInputAction.next,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Vui lòng nhập họ tên' : null,
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _phoneCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Số điện thoại *',
+              prefixIcon: Icon(Icons.phone_outlined, size: 20),
+              isDense: true,
+            ),
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.next,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Vui lòng nhập SĐT';
+              if (v.trim().length < 9) return 'SĐT không hợp lệ';
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _addressCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Địa chỉ giao hàng *',
+              prefixIcon: Icon(Icons.location_on_outlined, size: 20),
+              hintText: 'Số nhà, đường, phường/xã, quận/huyện, tỉnh/TP',
+              isDense: true,
+            ),
+            maxLines: 2,
+            textInputAction: TextInputAction.next,
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? 'Vui lòng nhập địa chỉ'
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================== PAYMENT SECTION ========================
+
+  Widget _buildPaymentSection(UserMember? member, int total) {
+    final walletAsync = member != null
+        ? ref.watch(walletBalanceProvider(member.id))
+        : null;
+
+    final walletBalance = walletAsync?.valueOrNull ?? 0;
+    final hasEnoughBalance = walletBalance >= total;
+
+    return _CheckoutCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.payment_outlined,
+            title: 'Phương thức thanh toán',
+          ),
+          const SizedBox(height: 14),
+
+          // COD option
+          _PaymentRadioCard(
+            icon: Icons.money_outlined,
+            title: 'Thanh toán khi nhận hàng',
+            subtitle: 'Trả tiền mặt cho shipper (COD)',
+            value: 'cod',
+            groupValue: _paymentMethod,
+            onChanged: (v) => setState(() => _paymentMethod = v),
+          ),
+          const SizedBox(height: 10),
+
+          // Wallet option
+          _PaymentRadioCard(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'Ví BookNest',
+            subtitle: walletAsync?.isLoading == true
+                ? 'Đang tải số dư...'
+                : 'Số dư: ${_formatVND(walletBalance)}',
+            value: 'vi_booknest',
+            groupValue: _paymentMethod,
+            onChanged: (v) => setState(() => _paymentMethod = v),
+            trailing: _paymentMethod == 'vi_booknest' && !hasEnoughBalance
+                ? Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.errorColor.withAlpha(20),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Không đủ',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.errorColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+
+          // Wallet insufficient warning
+          if (_paymentMethod == 'vi_booknest' && !hasEnoughBalance) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.warningColor.withAlpha(16),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: AppTheme.warningColor.withAlpha(40)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline,
+                      size: 18, color: AppTheme.warningColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Số dư ví không đủ. Cần thêm ${_formatVND(total - walletBalance)}. '
+                      'Vui lòng nạp thêm hoặc chọn COD.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.warningColor,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ======================== NOTE SECTION ========================
+
+  Widget _buildNoteSection() {
+    return _CheckoutCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.note_alt_outlined,
+            title: 'Ghi chú',
+            iconColor: AppTheme.textSecondary,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _noteCtrl,
+            decoration: const InputDecoration(
+              hintText: 'Ghi chú cho đơn hàng (tùy chọn)',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================== BILL SUMMARY ========================
+
+  Widget _buildBillSummary(int subtotal, int total) {
+    return _CheckoutCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            icon: Icons.receipt_long_outlined,
+            title: 'Chi tiết thanh toán',
+          ),
+          const SizedBox(height: 14),
+          _BillRow(
+            label: 'Tiền hàng ($_quantity sản phẩm)',
+            value: _formatVND(subtotal),
+          ),
+          const SizedBox(height: 6),
+          _BillRow(
+            label: 'Phí vận chuyển',
+            value: _formatVND(_shippingFee),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1),
+          ),
+          _BillRow(
+            label: 'Tổng thanh toán',
+            value: _formatVND(total),
+            isBold: true,
+            valueColor: AppTheme.primaryColor,
+            valueFontSize: 18,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ======================== BOTTOM BAR ========================
+
+  Widget _buildBottomBar(UserBook book, int total) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardLight,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(12),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tổng cộng',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _formatVND(total),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            SizedBox(
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: _isSubmitting ? null : () => _handleOrder(book),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  disabledBackgroundColor: AppTheme.primaryColor.withAlpha(120),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                ),
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.shopping_bag_outlined, size: 20),
+                label: Text(
+                  _isSubmitting ? 'Đang xử lý...' : 'Đặt hàng',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ======================== UTILITIES ========================
+
+  String _formatVND(int price) {
+    if (price <= 0) return '0đ';
     final str = price.toString();
     final buffer = StringBuffer();
     for (int i = 0; i < str.length; i++) {
       if (i > 0 && (str.length - i) % 3 == 0) buffer.write('.');
       buffer.write(str[i]);
     }
+    buffer.write('đ');
     return buffer.toString();
   }
 }
 
-// ==================== SUB-COMPONENTS ====================
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child});
+/// Section header with icon and title
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    this.iconColor,
+  });
 
+  final IconData icon;
   final String title;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = iconColor ?? AppTheme.primaryColor;
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: color.withAlpha(16),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        ),
+      ],
+    );
+  }
+}
+
+/// Card container with soft shadow
+class _CheckoutCard extends StatelessWidget {
+  const _CheckoutCard({required this.child});
   final Widget child;
 
   @override
@@ -372,31 +788,35 @@ class _SectionCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.cardLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.slate200.withAlpha(120)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(8),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(height: 12),
-          child,
+          BoxShadow(
+            color: Colors.black.withAlpha(4),
+            blurRadius: 24,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
+      child: child,
     );
   }
 }
 
+/// Quantity selector with +/- buttons
 class _QuantitySelector extends StatelessWidget {
-  const _QuantitySelector({required this.value, required this.onChanged});
+  const _QuantitySelector({
+    required this.value,
+    required this.onChanged,
+    this.maxValue = 99,
+  });
 
   final int value;
+  final int maxValue;
   final ValueChanged<int> onChanged;
 
   @override
@@ -409,20 +829,21 @@ class _QuantitySelector extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _QtyButton(
+          _QtyBtn(
             icon: Icons.remove,
             onTap: value > 1 ? () => onChanged(value - 1) : null,
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Text(
               '$value',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
             ),
           ),
-          _QtyButton(
+          _QtyBtn(
             icon: Icons.add,
-            onTap: () => onChanged(value + 1),
+            onTap: value < maxValue ? () => onChanged(value + 1) : null,
           ),
         ],
       ),
@@ -430,9 +851,8 @@ class _QuantitySelector extends StatelessWidget {
   }
 }
 
-class _QtyButton extends StatelessWidget {
-  const _QtyButton({required this.icon, this.onTap});
-
+class _QtyBtn extends StatelessWidget {
+  const _QtyBtn({required this.icon, this.onTap});
   final IconData icon;
   final VoidCallback? onTap;
 
@@ -440,26 +860,29 @@ class _QtyButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
       child: Padding(
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(7),
         child: Icon(icon,
             size: 16,
             color: onTap != null
                 ? AppTheme.textPrimaryLight
-                : AppTheme.textSecondary.withAlpha(100)),
+                : AppTheme.slate200),
       ),
     );
   }
 }
 
-class _PaymentOption extends StatelessWidget {
-  const _PaymentOption({
+/// Payment method radio card
+class _PaymentRadioCard extends StatelessWidget {
+  const _PaymentRadioCard({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.value,
     required this.groupValue,
     required this.onChanged,
+    this.trailing,
   });
 
   final IconData icon;
@@ -467,7 +890,8 @@ class _PaymentOption extends StatelessWidget {
   final String subtitle;
   final String value;
   final String groupValue;
-  final ValueChanged<String?> onChanged;
+  final ValueChanged<String> onChanged;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -475,13 +899,15 @@ class _PaymentOption extends StatelessWidget {
 
     return GestureDetector(
       onTap: () => onChanged(value),
-      child: Container(
-        padding: const EdgeInsets.all(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? AppTheme.primaryColor : AppTheme.slate200,
-            width: isSelected ? 1.5 : 1,
+            width: isSelected ? 1.8 : 1,
           ),
           color: isSelected
               ? AppTheme.primaryColor.withAlpha(8)
@@ -489,29 +915,51 @@ class _PaymentOption extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon,
-                size: 22,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
                 color: isSelected
-                    ? AppTheme.primaryColor
-                    : AppTheme.textSecondary),
+                    ? AppTheme.primaryColor.withAlpha(20)
+                    : AppTheme.slate200.withAlpha(120),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon,
+                  size: 18,
+                  color: isSelected
+                      ? AppTheme.primaryColor
+                      : AppTheme.textSecondary),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  Text(subtitle,
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelSmall
-                          ?.copyWith(color: AppTheme.textSecondary)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isSelected
+                          ? AppTheme.primaryColor
+                          : AppTheme.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing!,
+            ],
+            const SizedBox(width: 4),
             Container(
               width: 20,
               height: 20,
@@ -520,7 +968,7 @@ class _PaymentOption extends StatelessWidget {
                 border: Border.all(
                   color: isSelected
                       ? AppTheme.primaryColor
-                      : AppTheme.textSecondary,
+                      : AppTheme.textSecondary.withAlpha(100),
                   width: 2,
                 ),
               ),
@@ -544,39 +992,44 @@ class _PaymentOption extends StatelessWidget {
   }
 }
 
-class _PriceRow extends StatelessWidget {
-  const _PriceRow({
+/// Bill summary row
+class _BillRow extends StatelessWidget {
+  const _BillRow({
     required this.label,
     required this.value,
     this.isBold = false,
-    this.isRed = false,
+    this.valueColor,
+    this.valueFontSize,
   });
 
   final String label;
   final String value;
   final bool isBold;
-  final bool isRed;
+  final Color? valueColor;
+  final double? valueFontSize;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isBold ? null : AppTheme.textSecondary,
-                    fontWeight: isBold ? FontWeight.bold : null,
-                  )),
-          Text(value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-                    color: isRed ? AppTheme.primaryColor : null,
-                    fontSize: isBold ? 16 : null,
-                  )),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isBold ? 15 : 14,
+            color: isBold ? AppTheme.textPrimaryLight : AppTheme.textSecondary,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: valueFontSize ?? (isBold ? 16 : 14),
+            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+            color: valueColor ?? AppTheme.textPrimaryLight,
+          ),
+        ),
+      ],
     );
   }
 }

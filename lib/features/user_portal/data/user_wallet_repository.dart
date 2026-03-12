@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -99,12 +101,21 @@ class UserWalletRepository {
         .update({'soduvi': current + amount})
         .eq('madg', memberId);
   }
-
   /// Trừ tiền ví (mua sách, phạt, phí gói...)
+  /// Trả về true nếu trừ thành công, throw Exception nếu thất bại
   Future<bool> deduct(String memberId, int amount, String type, String description) async {
+    log('[WalletRepo] Bắt đầu trừ tiền: memberId=$memberId, amount=$amount, type=$type');
+    
     final balance = await getBalance(memberId);
-    if (balance < amount) return false;
+    log('[WalletRepo] Số dư hiện tại: $balance');
+    
+    if (balance < amount) {
+      log('[WalletRepo] LỖI: Số dư không đủ! Cần $amount, có $balance');
+      return false;
+    }
 
+    // Bước 1: Insert giao dịch trừ tiền
+    log('[WalletRepo] Insert giao dịch vào bảng giao_dich_vi...');
     await _client.from('giao_dich_vi').insert({
       'madg': memberId,
       'loaigiaodich': type,
@@ -112,11 +123,16 @@ class UserWalletRepository {
       'ngaygiaodich': DateTime.now().toIso8601String(),
       'noidung': description,
     });
+    log('[WalletRepo] Insert giao dịch thành công!');
 
+    // Bước 2: Cập nhật số dư trong bảng doc_gia
+    final newBalance = balance - amount;
+    log('[WalletRepo] Cập nhật số dư mới: $newBalance');
     await _client
         .from('doc_gia')
-        .update({'soduvi': balance - amount})
+        .update({'soduvi': newBalance})
         .eq('madg', memberId);
+    log('[WalletRepo] Đã trừ tiền trong ví thành công: $amount');
 
     return true;
   }
